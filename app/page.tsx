@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useTranslations } from 'next-intl'
 import FluidOverview from '@/components/dashboards/FluidOverview'
 import PredictiveMaintenance from '@/components/dashboards/PredictiveMaintenance'
@@ -20,6 +20,15 @@ export default function DashboardPage() {
   const t = useTranslations('Navigation')
   const [activeTab, setActiveTab] = useState('overview')
   const { activeAlerts } = useDemoMode()
+
+  // Fire alert checks on the same 30-second cadence as the dashboard refresh.
+  // The server route handles cooldowns so emails are never spammed.
+  useEffect(() => {
+    const checkAlerts = () => fetch('/api/alerts/check').catch(() => {})
+    checkAlerts()
+    const id = setInterval(checkAlerts, 30_000)
+    return () => clearInterval(id)
+  }, [])
 
   const alertCount = activeAlerts.length
 

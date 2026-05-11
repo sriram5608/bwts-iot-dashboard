@@ -92,15 +92,40 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   // Polling ticker to refresh alert state in sync with demo data
+  // Track which alert types have already triggered an email this demo session
+  const emailedTypes = useRef<Set<string>>(new Set())
+
   const alertTickRef = useRef<ReturnType<typeof setInterval> | null>(null)
   useEffect(() => {
     if (!isDemoMode) {
       if (alertTickRef.current) clearInterval(alertTickRef.current)
+      emailedTypes.current.clear()
       return
     }
     alertTickRef.current = setInterval(() => {
-      setActiveAlerts([...getActiveAlerts()])
+      const current = getActiveAlerts()
+      setActiveAlerts([...current])
       setAlertHistory([...getAlertHistory()])
+
+      // Send email for any newly active alert type not yet emailed
+      for (const alert of current) {
+        if (alert.status === 'ACTIVE' && !emailedTypes.current.has(alert.type)) {
+          emailedTypes.current.add(alert.type)
+          fetch('/api/alerts/demo', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: alert.type,
+              severity: alert.severity,
+              parameter: alert.parameter,
+              currentValue: alert.currentValue,
+              threshold: alert.threshold,
+              unit: alert.unit,
+              recommendedAction: alert.recommendedAction,
+            }),
+          }).catch(() => {})
+        }
+      }
     }, 2000)
     return () => { if (alertTickRef.current) clearInterval(alertTickRef.current) }
   }, [isDemoMode])
