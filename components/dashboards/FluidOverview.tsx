@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { useTranslations, useLocale } from 'next-intl'
 import { dateFnsLocaleMap } from '@/lib/dateFnsLocales'
 import { format } from 'date-fns'
+import { useDemoMode } from '@/lib/demo-context'
+import { processReading } from '@/lib/simulation/alert-engine'
 
 interface TelemetryReading {
   timestamp: string
@@ -17,6 +19,7 @@ interface TelemetryReading {
   FLT_DIFF_PRESSURE?: number
   FLT_BACKFLUSH_ACTIVE?: boolean
   FLT_BACKFLUSH_COUNT?: number
+  AVG_LAMP_EFFICIENCY?: number
   [key: string]: string | number | boolean | undefined
 }
 
@@ -38,6 +41,7 @@ export default function FluidOverview() {
   const t = useTranslations('FluidOverview')
   const tCommon = useTranslations('Common')
   const locale = useLocale()
+  const { isDemoMode, activeAlerts } = useDemoMode()
 
   const [data, setData] = useState<{
     latestTelemetry: TelemetryReading | null
@@ -53,14 +57,37 @@ export default function FluidOverview() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await fetch('/api/stats')
+        const url = isDemoMode ? '/api/stats?source=demo' : '/api/stats'
+        const response = await fetch(url)
         const stats = await response.json()
+        const telemetry = stats.latestTelemetry
         setData({
-          latestTelemetry: stats.latestTelemetry,
+          latestTelemetry: telemetry,
           latestHealth: stats.latestHealth,
           recentEvents: stats.recentEvents || []
         })
         setLoading(false)
+
+        // Feed reading into alert engine when in demo mode
+        if (isDemoMode && telemetry) {
+          const lampStatuses = Array.from({ length: 16 }, (_, i) => {
+            const id = String(i + 1).padStart(2, '0')
+            return (telemetry[`LAMP_${id}_STATUS`] as string) || 'OK'
+          })
+          const lampEfficiencies = Array.from({ length: 16 }, (_, i) => {
+            const id = String(i + 1).padStart(2, '0')
+            return (telemetry[`LAMP_${id}_EFFICIENCY`] as number) || 0
+          })
+          processReading({
+            uvIntensity: telemetry.UVR_INTENSITY || 0,
+            flowRate: telemetry.SYS_FLOW_RATE || 0,
+            filterPressure: telemetry.FLT_DIFF_PRESSURE || 0,
+            lampEfficiency: telemetry.AVG_LAMP_EFFICIENCY || 0,
+            lampStatuses,
+            lampEfficiencies,
+            timestamp: Date.now(),
+          })
+        }
       } catch (error) {
         console.error('Failed to fetch data:', error)
         setLoading(false)
@@ -68,9 +95,10 @@ export default function FluidOverview() {
     }
 
     fetchData()
-    const interval = setInterval(fetchData, 30000)
+    const interval = setInterval(fetchData, isDemoMode ? 2000 : 30000)
     return () => clearInterval(interval)
-  }, [])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDemoMode])
 
   if (loading) {
     return (
@@ -106,6 +134,8 @@ export default function FluidOverview() {
     if (efficiency >= 50) return { gradient: 'from-orange-500 to-orange-600', glow: 'rgba(249, 115, 22, 0.4)' }
     return { gradient: 'from-red-500 to-red-600', glow: 'rgba(239, 68, 68, 0.4)' }
   }
+
+  const hasLampAlert = isDemoMode && activeAlerts.some(a => a.type === 'LAMP_FAILURE')
 
   const healthScore = latestHealth?.overall_score || 0
   const alarms = recentEvents.filter(e => e.event_type === 'ALARM_TRIGGERED').slice(0, 3)
@@ -160,7 +190,8 @@ export default function FluidOverview() {
                     key={lampId}
                     className={`w-14 h-14 rounded-full flex flex-col items-center justify-center cursor-pointer
                                 transition-all duration-300 hover:scale-110 hover:z-10
-                                bg-gradient-to-br ${style.gradient}`}
+                                bg-gradient-to-br ${style.gradient}
+                                ${hasLampAlert && lamp.status === 'FAILED' ? 'ring-2 ring-red-400 ring-offset-1 animate-pulse' : ''}`}
                     style={{
                       boxShadow: `0 4px 20px ${style.glow}, inset 0 2px 10px rgba(255,255,255,0.3)`,
                       opacity: Math.max(0.6, lamp.efficiency / 100),
@@ -188,7 +219,7 @@ export default function FluidOverview() {
       </div>
 
       {/* TOP LEFT - Alarms */}
-      <div className="fixed top-24 left-8 transition-opacity hover:opacity-100 opacity-90">
+      <div className="fixed top-16 left-8 transition-opacity hover:opacity-100 opacity-90">
         <div className="flex items-center gap-2 mb-3">
           <div className={`w-2 h-2 rounded-full ${alarms.length > 0 ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
           <span className="text-slate-400 text-xs font-medium uppercase tracking-wider">{t('activeAlarms')}</span>
@@ -216,7 +247,7 @@ export default function FluidOverview() {
       </div>
 
       {/* TOP CENTER - Timestamp */}
-      <div className="fixed top-24 left-1/2 -translate-x-1/2 text-center transition-opacity hover:opacity-100 opacity-90">
+      <div className="fixed top-16 left-1/2 -translate-x-1/2 text-center transition-opacity hover:opacity-100 opacity-90">
         <p className="text-slate-400 text-[10px] uppercase tracking-wider">{tCommon('lastUpdated')}</p>
         <p className="text-slate-600 text-sm font-medium">
           {latestTelemetry?.timestamp ? formatTimestamp(latestTelemetry.timestamp) : '--'}
@@ -224,7 +255,7 @@ export default function FluidOverview() {
       </div>
 
       {/* TOP RIGHT - Health Score */}
-      <div className="fixed top-24 right-8 text-right transition-opacity hover:opacity-100 opacity-90">
+      <div className="fixed top-16 right-8 text-right transition-opacity hover:opacity-100 opacity-90">
         <div className="flex items-center gap-2 justify-end mb-6">
           <span className="text-slate-400 text-xs font-medium uppercase tracking-wider">{t('systemHealth')}</span>
           <div className={`w-2 h-2 rounded-full ${healthScore >= 80 ? 'bg-emerald-500' : healthScore >= 60 ? 'bg-blue-500' : 'bg-amber-500'}`} />

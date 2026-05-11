@@ -5,7 +5,9 @@
     "trends": "Trends",
     "compliance": "Compliance",
     "comparative": "Comparative",
-    "export": "Export"
+    "export": "Export",
+    "analysis": "Analysis",
+    "alerts": "Alerts"
   },
   "Common": {
     "loading": "Loading...",
@@ -243,5 +245,55 @@
   },
   "LanguageSwitcher": {
     "label": "Language"
+  },
+  "DemoControls": {
+    "liveDemo": "Live Demo",
+    "historical": "Historical",
+    "ballast": "Ballast",
+    "deballast": "Deballast",
+    "triggerLampFailure": "Trigger Lamp Failure",
+    "triggerFilterClog": "Trigger Filter Clog",
+    "triggerFlowDeviation": "Trigger Flow Deviation",
+    "resetDemo": "Reset Demo",
+    "demoControls": "Demo Controls"
+  },
+  "AnalysisTab": {
+    "loading": "Loading analysis...",
+    "enableDemoMode": "Enable Live Demo mode to view real-time analysis",
+    "parameterCharts": "Real-time Parameters",
+    "anomalyScores": "Anomaly Detection Scores",
+    "healthTimeline": "System Health Timeline",
+    "lampHeatmap": "Lamp Status Heatmap",
+    "uvIntensity": "UV Intensity",
+    "flowRate": "Flow Rate",
+    "filterDp": "Filter Differential Pressure",
+    "lampEfficiency": "Avg Lamp Efficiency",
+    "tableParameter": "Parameter",
+    "tableCurrent": "Current",
+    "tableDeviation": "Deviation",
+    "tableRate": "Rate/min",
+    "tableTimeToAlert": "Est. Time to Alert",
+    "alerting": "ALERTING",
+    "timelineWaiting": "Waiting for data...",
+    "levelNormal": "Normal",
+    "levelWarning": "Warning",
+    "levelCritical": "Critical",
+    "lampLabel": "L{id}"
+  },
+  "AlertsTab": {
+    "enableDemoMode": "Enable Live Demo mode to view alerts",
+    "activeAlerts": "Active Alerts",
+    "alertHistory": "Alert History",
+    "noActiveAlerts": "All systems nominal — no active alerts",
+    "noHistory": "No alerts recorded in this session",
+    "acknowledge": "Acknowledge",
+    "resolve": "Resolve",
+    "valueVsThreshold": "Current: {current} {unit} — Threshold: {threshold} {unit} — Deviation: {deviation}%",
+    "historyTime": "Time",
+    "historySeverity": "Severity",
+    "historyParameter": "Parameter",
+    "historyValue": "Value",
+    "historyStatus": "Status",
+    "historyResolved": "Resolved At"
   }
 }

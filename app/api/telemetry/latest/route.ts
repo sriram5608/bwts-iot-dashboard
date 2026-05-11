@@ -1,8 +1,13 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { queryOne } from '@/lib/db'
 import { buildTelemetrySelect } from '@/lib/telemetry-columns'
+import { generateBWTSData } from '@/lib/simulation/bwts-simulator'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  if (request.nextUrl.searchParams.get('source') === 'demo') {
+    return NextResponse.json(generateBWTSData().latestTelemetry)
+  }
+
   try {
     const latest = await queryOne(
       `SELECT ${buildTelemetrySelect()} FROM bwts_iot_telemetry ORDER BY timestamp DESC LIMIT 1`

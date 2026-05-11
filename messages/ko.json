@@ -5,7 +5,9 @@
     "trends": "트렌드",
     "compliance": "규정 준수",
     "comparative": "비교 분석",
-    "export": "데이터 내보내기"
+    "export": "데이터 내보내기",
+    "analysis": "분석",
+    "alerts": "알림"
   },
   "Common": {
     "loading": "로딩 중...",
@@ -243,5 +245,55 @@
   },
   "LanguageSwitcher": {
     "label": "언어"
+  },
+  "DemoControls": {
+    "liveDemo": "라이브 데모",
+    "historical": "기록 데이터",
+    "ballast": "밸러스트",
+    "deballast": "디밸러스트",
+    "triggerLampFailure": "램프 고장 발생",
+    "triggerFilterClog": "필터 막힘 발생",
+    "triggerFlowDeviation": "유량 편차 발생",
+    "resetDemo": "데모 재설정",
+    "demoControls": "데모 제어"
+  },
+  "AnalysisTab": {
+    "loading": "분석 로드 중...",
+    "enableDemoMode": "실시간 분석을 보려면 라이브 데모 모드를 활성화하세요",
+    "parameterCharts": "실시간 매개변수",
+    "anomalyScores": "이상 감지 점수",
+    "healthTimeline": "시스템 상태 타임라인",
+    "lampHeatmap": "램프 상태 히트맵",
+    "uvIntensity": "UV 강도",
+    "flowRate": "유량",
+    "filterDp": "필터 차압",
+    "lampEfficiency": "평균 램프 효율",
+    "tableParameter": "매개변수",
+    "tableCurrent": "현재값",
+    "tableDeviation": "편차",
+    "tableRate": "변화율/분",
+    "tableTimeToAlert": "예상 경고까지 시간",
+    "alerting": "경고 중",
+    "timelineWaiting": "데이터 대기 중...",
+    "levelNormal": "정상",
+    "levelWarning": "경고",
+    "levelCritical": "위험",
+    "lampLabel": "L{id}"
+  },
+  "AlertsTab": {
+    "enableDemoMode": "알림을 보려면 라이브 데모 모드를 활성화하세요",
+    "activeAlerts": "활성 알림",
+    "alertHistory": "알림 기록",
+    "noActiveAlerts": "모든 시스템 정상 — 활성 알림 없음",
+    "noHistory": "이 세션에서 기록된 알림이 없습니다",
+    "acknowledge": "확인",
+    "resolve": "해결",
+    "valueVsThreshold": "현재값: {current} {unit} — 임계값: {threshold} {unit} — 편차: {deviation}%",
+    "historyTime": "시간",
+    "historySeverity": "심각도",
+    "historyParameter": "매개변수",
+    "historyValue": "값",
+    "historyStatus": "상태",
+    "historyResolved": "해결 시간"
   }
 }

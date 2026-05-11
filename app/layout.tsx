@@ -3,7 +3,7 @@ import { DM_Sans, Noto_Sans_JP, Noto_Sans_KR } from "next/font/google";
 import { NextIntlClientProvider } from 'next-intl'
 import { getMessages } from 'next-intl/server'
 import { getLocale } from '@/lib/locale'
-import LanguageSwitcher from '@/components/LanguageSwitcher'
+import { DemoProvider } from '@/lib/demo-context'
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -49,10 +49,9 @@ export default async function RootLayout({
     <html lang={locale}>
       <body className={`${fontClass} antialiased`}>
         <NextIntlClientProvider locale={locale} messages={messages}>
-          <div className="fixed top-4 right-4 z-[100]">
-            <LanguageSwitcher currentLocale={locale} />
-          </div>
-          {children}
+          <DemoProvider>
+            {children}
+          </DemoProvider>
         </NextIntlClientProvider>
       </body>
     </html>

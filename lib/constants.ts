@@ -1,9 +1,10 @@
 // Threshold values for BWTS system
+// IMO_MIN and USCG_MIN updated to Alfa Laval PureBallast operating spec (previously 252/530 regulatory floor)
 export const THRESHOLDS = {
   UV_INTENSITY: {
-    USCG_MIN: 530, // W/m²
-    IMO_MIN: 252, // W/m²
-    OPTIMAL: 650, // W/m²
+    USCG_MIN: 772, // W/m² — Alfa Laval PureBallast USCG mode minimum
+    IMO_MIN: 380,  // W/m² — Alfa Laval PureBallast IMO mode minimum
+    OPTIMAL: 720,  // W/m² — typical operating point
   },
   LAMP_EFFICIENCY: {
     GOOD: 90, // >= 90%

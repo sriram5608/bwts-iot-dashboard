@@ -1,8 +1,13 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { queryOne, query } from '@/lib/db'
 import { buildTelemetrySelect } from '@/lib/telemetry-columns'
+import { generateBWTSData } from '@/lib/simulation/bwts-simulator'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  if (request.nextUrl.searchParams.get('source') === 'demo') {
+    return NextResponse.json(generateBWTSData())
+  }
+
   try {
     const currentMonth = new Date().getMonth() + 1
 
@@ -34,7 +39,6 @@ export async function GET() {
       )
     ])
 
-    // Map camelCase event columns to snake_case for frontend
     const mappedEvents = recentEvents.map(e => ({
       event_type: e.eventType,
       description: e.description,

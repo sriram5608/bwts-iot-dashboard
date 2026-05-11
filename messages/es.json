@@ -5,7 +5,9 @@
     "trends": "Tendencias",
     "compliance": "Cumplimiento",
     "comparative": "Análisis Comparativo",
-    "export": "Exportar Datos"
+    "export": "Exportar Datos",
+    "analysis": "Análisis",
+    "alerts": "Alertas"
   },
   "Common": {
     "loading": "Cargando...",
@@ -243,5 +245,55 @@
   },
   "LanguageSwitcher": {
     "label": "Idioma"
+  },
+  "DemoControls": {
+    "liveDemo": "Demo en Vivo",
+    "historical": "Datos Históricos",
+    "ballast": "Lastre",
+    "deballast": "Deslastre",
+    "triggerLampFailure": "Simular Falla de Lámpara",
+    "triggerFilterClog": "Simular Obstrucción de Filtro",
+    "triggerFlowDeviation": "Simular Desviación de Flujo",
+    "resetDemo": "Reiniciar Demo",
+    "demoControls": "Controles Demo"
+  },
+  "AnalysisTab": {
+    "loading": "Cargando análisis...",
+    "enableDemoMode": "Active el modo Demo en Vivo para ver el análisis en tiempo real",
+    "parameterCharts": "Parámetros en Tiempo Real",
+    "anomalyScores": "Puntuaciones de Detección de Anomalías",
+    "healthTimeline": "Línea de Tiempo de Salud del Sistema",
+    "lampHeatmap": "Mapa de Estado de Lámparas",
+    "uvIntensity": "Intensidad UV",
+    "flowRate": "Caudal",
+    "filterDp": "Presión Diferencial del Filtro",
+    "lampEfficiency": "Eficiencia Promedio de Lámparas",
+    "tableParameter": "Parámetro",
+    "tableCurrent": "Actual",
+    "tableDeviation": "Desviación",
+    "tableRate": "Tasa/min",
+    "tableTimeToAlert": "Tiempo Est. para Alerta",
+    "alerting": "EN ALERTA",
+    "timelineWaiting": "Esperando datos...",
+    "levelNormal": "Normal",
+    "levelWarning": "Advertencia",
+    "levelCritical": "Crítico",
+    "lampLabel": "L{id}"
+  },
+  "AlertsTab": {
+    "enableDemoMode": "Active el modo Demo en Vivo para ver las alertas",
+    "activeAlerts": "Alertas Activas",
+    "alertHistory": "Historial de Alertas",
+    "noActiveAlerts": "Todos los sistemas normales — sin alertas activas",
+    "noHistory": "No se registraron alertas en esta sesión",
+    "acknowledge": "Confirmar",
+    "resolve": "Resolver",
+    "valueVsThreshold": "Actual: {current} {unit} — Umbral: {threshold} {unit} — Desviación: {deviation}%",
+    "historyTime": "Hora",
+    "historySeverity": "Severidad",
+    "historyParameter": "Parámetro",
+    "historyValue": "Valor",
+    "historyStatus": "Estado",
+    "historyResolved": "Resuelto A"
   }
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useTransition } from 'react'
+import { useTransition, useState, useEffect } from 'react'
 
 const LOCALES = [
   { code: 'en', label: 'English',    flag: '🇺🇸' },
@@ -11,9 +11,15 @@ const LOCALES = [
   { code: 'pt', label: 'Portuguese', flag: '🇧🇷' },
 ]
 
-export default function LanguageSwitcher({ currentLocale }: { currentLocale: string }) {
+export default function LanguageSwitcher() {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
+  const [currentLocale, setCurrentLocale] = useState('en')
+
+  useEffect(() => {
+    const match = document.cookie.match(/(?:^|;\s*)BWTS_LOCALE=([^;]+)/)
+    setCurrentLocale(match?.[1] || document.documentElement.lang || 'en')
+  }, [])
 
   const handleChange = (locale: string) => {
     document.cookie = `BWTS_LOCALE=${locale}; path=/; max-age=31536000; SameSite=Lax`

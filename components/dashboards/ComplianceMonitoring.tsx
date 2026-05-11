@@ -52,8 +52,8 @@ export default function ComplianceMonitoring() {
     if (!latestTelemetry) return []
 
     const lastCheckDate = new Date(latestTelemetry.timestamp).toLocaleDateString(locale)
-    const imoCompliant = latestTelemetry.UVR_INTENSITY >= 252
-    const uscgCompliant = latestTelemetry.UVR_INTENSITY >= 530
+    const imoCompliant = latestTelemetry.UVR_INTENSITY >= 380
+    const uscgCompliant = latestTelemetry.UVR_INTENSITY >= 772
     const treatmentEffective = latestTelemetry.AVG_LAMP_EFFICIENCY >= 70
     const maintenanceOk = latestTelemetry.FAILED_LAMP_COUNT === 0
 
@@ -198,14 +198,14 @@ export default function ComplianceMonitoring() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-slate-500 text-sm">{t('imoD2Label')}</span>
-                <span className={`font-medium ${(latestTelemetry?.UVR_INTENSITY ?? 0) >= 252 ? 'text-emerald-600' : 'text-red-500'}`}>
-                  {latestTelemetry ? (latestTelemetry.UVR_INTENSITY >= 252 ? t('auditResultPass') : t('auditResultFail')) : '-'}
+                <span className={`font-medium ${(latestTelemetry?.UVR_INTENSITY ?? 0) >= 380 ? 'text-emerald-600' : 'text-red-500'}`}>
+                  {latestTelemetry ? (latestTelemetry.UVR_INTENSITY >= 380 ? t('auditResultPass') : t('auditResultFail')) : '-'}
                 </span>
               </div>
               <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
                 <div
-                  className={`h-full rounded-full ${(latestTelemetry?.UVR_INTENSITY ?? 0) >= 252 ? 'bg-gradient-to-r from-emerald-500 to-green-500' : 'bg-gradient-to-r from-red-500 to-orange-500'}`}
-                  style={{ width: latestTelemetry ? `${Math.min(100, (latestTelemetry.UVR_INTENSITY / 252) * 100)}%` : '0%' }}
+                  className={`h-full rounded-full ${(latestTelemetry?.UVR_INTENSITY ?? 0) >= 380 ? 'bg-gradient-to-r from-emerald-500 to-green-500' : 'bg-gradient-to-r from-red-500 to-orange-500'}`}
+                  style={{ width: latestTelemetry ? `${Math.min(100, (latestTelemetry.UVR_INTENSITY / 380) * 100)}%` : '0%' }}
                 />
               </div>
               <p className="text-slate-400 text-xs mt-1">{t('currentValue', { value: latestTelemetry?.UVR_INTENSITY?.toFixed(1) || '-' })}</p>
@@ -213,14 +213,14 @@ export default function ComplianceMonitoring() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-slate-500 text-sm">{t('uscgLabel')}</span>
-                <span className={`font-medium ${(latestTelemetry?.UVR_INTENSITY ?? 0) >= 530 ? 'text-emerald-600' : 'text-yellow-600'}`}>
-                  {latestTelemetry ? (latestTelemetry.UVR_INTENSITY >= 530 ? t('auditResultPass') : t('statusMarginal')) : '-'}
+                <span className={`font-medium ${(latestTelemetry?.UVR_INTENSITY ?? 0) >= 772 ? 'text-emerald-600' : 'text-yellow-600'}`}>
+                  {latestTelemetry ? (latestTelemetry.UVR_INTENSITY >= 772 ? t('auditResultPass') : t('statusMarginal')) : '-'}
                 </span>
               </div>
               <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
                 <div
-                  className={`h-full rounded-full ${(latestTelemetry?.UVR_INTENSITY ?? 0) >= 530 ? 'bg-gradient-to-r from-emerald-500 to-green-500' : 'bg-gradient-to-r from-yellow-500 to-orange-500'}`}
-                  style={{ width: latestTelemetry ? `${Math.min(100, (latestTelemetry.UVR_INTENSITY / 530) * 100)}%` : '0%' }}
+                  className={`h-full rounded-full ${(latestTelemetry?.UVR_INTENSITY ?? 0) >= 772 ? 'bg-gradient-to-r from-emerald-500 to-green-500' : 'bg-gradient-to-r from-yellow-500 to-orange-500'}`}
+                  style={{ width: latestTelemetry ? `${Math.min(100, (latestTelemetry.UVR_INTENSITY / 772) * 100)}%` : '0%' }}
                 />
               </div>
               <p className="text-slate-400 text-xs mt-1">{t('currentValue', { value: latestTelemetry?.UVR_INTENSITY?.toFixed(1) || '-' })}</p>
