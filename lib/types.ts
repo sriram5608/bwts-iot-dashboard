@@ -83,7 +83,7 @@ export interface Event {
   event_type: 'PROCESS_START' | 'PROCESS_STOP' | 'ALARM_TRIGGERED'
   description: string
   month: number
-  data: any
+  data: Record<string, unknown> | null
 }
 
 export interface LampStatus {

@@ -11,7 +11,7 @@ This is a **BWTS (Ballast Water Treatment System) IoT Monitoring Dashboard** bui
 **Key Technologies:**
 - Next.js 16+ (App Router)
 - TypeScript (strict mode)
-- MongoDB Atlas (cloud database)
+- PostgreSQL on Google Cloud SQL (via `pg` driver + `@google-cloud/cloud-sql-connector`)
 - Tailwind CSS 4 + shadcn/ui
 - Recharts for data visualization
 - Progressive Data Loading (instant render + background streaming)
@@ -40,20 +40,22 @@ npm run lint
 
 ## Environment Configuration
 
-Required environment variables in `.env.local`:
+Required environment variables in `.env`:
 
 ```bash
-MONGODB_URI=<your-mongodb-connection-string>
-MONGODB_DB=demo
-MONGODB_COLLECTION_PREFIX=bwts_iot
+POSTGRES_USER=<db-user>
+POSTGRES_PASSWORD=<db-password>
+POSTGRES_DB=metaweave
+CLOUD_SQL_INSTANCE_CONNECTION_NAME=lifeosai-481608:asia-south1:lifeosai-db
+GOOGLE_SERVICE_ACCOUNT_BASE64=<base64-encoded GCP service account JSON>
 ```
 
-**MongoDB Collections:**
-- `bwts_iot_telemetry` - Real-time sensor readings
-- `bwts_iot_health_scores` - System health metrics
-- `bwts_iot_events` - Process events and alarms
-- `bwts_iot_predictions` - ML predictions for maintenance
-- `bwts_iot_voyage_schedule` - Voyage planning data
+**PostgreSQL Tables:**
+- `bwts_iot_telemetry` - 3-minute sensor readings (~17,500 rows/year)
+- `bwts_iot_health_scores` - Pre-computed system health scores (0–100)
+- `bwts_iot_events` - Process lifecycle & alarm events
+- `bwts_iot_predictions` - ML predictions for UV lamp remaining useful life
+- `bwts_iot_voyage_schedule` - Voyage planning data (not used by dashboard UI)
 
 ---
 
@@ -65,13 +67,13 @@ MONGODB_COLLECTION_PREFIX=bwts_iot
 Dashboard Component (Client)
   ↓ fetch('/api/...')
 API Route Handler (Server)
-  ↓ getTelemetryCollection()
-MongoDB Helper (lib/mongodb.ts)
-  ↓ MongoDB Atlas
-Database Collections
+  ↓ query() / queryOne()
+PostgreSQL Helper (lib/db.ts)
+  ↓ Google Cloud SQL Connector
+Cloud SQL PostgreSQL (metaweave DB)
 ```
 
-**Important:** All dashboard components are client-side (`'use client'`) and fetch data from Next.js API routes. Never query MongoDB directly from client components.
+**Important:** All dashboard components are client-side (`'use client'`) and fetch data from Next.js API routes. Never query PostgreSQL directly from client components.
 
 ### File Structure
 
@@ -81,14 +83,16 @@ app/
 │   ├── telemetry/
 │   │   ├── latest/        # GET /api/telemetry/latest
 │   │   ├── history/       # GET /api/telemetry/history
-│   │   ├── aggregated/    # GET /api/telemetry/aggregated (NEW - daily/hourly buckets)
-│   │   └── chunked/       # GET /api/telemetry/chunked (NEW - paginated streaming)
+│   │   ├── aggregated/    # GET /api/telemetry/aggregated (daily/hourly buckets)
+│   │   ├── chunked/       # GET /api/telemetry/chunked (paginated streaming)
+│   │   └── runtime-analysis/ # GET /api/telemetry/runtime-analysis
 │   ├── health/
 │   │   ├── route.ts       # GET /api/health
-│   │   └── aggregated/    # GET /api/health/aggregated (NEW - time-bucketed health)
+│   │   └── aggregated/    # GET /api/health/aggregated (time-bucketed health)
 │   ├── events/            # GET /api/events
 │   ├── predictions/       # GET /api/predictions
-│   └── stats/             # GET /api/stats (aggregated data)
+│   ├── stats/             # GET /api/stats (aggregated data)
+│   └── debug/lamp-data/   # GET /api/debug/lamp-data (dev only)
 ├── globals.css            # Tailwind config + custom CSS variables
 ├── layout.tsx             # Root layout with DM Sans font
 └── page.tsx               # Main dashboard with tab navigation
@@ -104,35 +108,54 @@ components/
 └── ui/                    # shadcn/ui components
 
 lib/
-├── mongodb.ts             # MongoDB connection & collection helpers
+├── db.ts                  # PostgreSQL pool + query helpers
+├── telemetry-columns.ts   # Column alias builder (compressed → underscore format)
 ├── types.ts               # TypeScript interfaces (TelemetryReading, HealthScore, etc.)
 ├── constants.ts           # Thresholds, gradients, refresh intervals
 └── utils.ts               # Utility functions (cn for className merging)
+
+docs/
+└── data/schema-overview.mdx  # Full PostgreSQL schema documentation
 ```
 
 ---
 
-## MongoDB Connection Pattern
+## PostgreSQL Connection Pattern
 
-**Always use the helper functions from `lib/mongodb.ts`:**
+**Always use the helper functions from `lib/db.ts`:**
 
 ```typescript
-import { getTelemetryCollection, getHealthCollection } from '@/lib/mongodb'
+import { query, queryOne } from '@/lib/db'
 
-// In API routes
-export async function GET() {
-  const collection = await getTelemetryCollection()
-  const data = await collection.find({}).sort({ timestamp: -1 }).limit(10).toArray()
-  return NextResponse.json(data)
-}
+// Fetch multiple rows
+const rows = await query<TelemetryReading>(
+  'SELECT * FROM bwts_iot_telemetry ORDER BY timestamp DESC LIMIT $1',
+  [10]
+)
+
+// Fetch a single row
+const latest = await queryOne<TelemetryReading>(
+  'SELECT * FROM bwts_iot_telemetry ORDER BY timestamp DESC LIMIT 1'
+)
 ```
 
 **Connection Behavior:**
-- Development: Uses global singleton to prevent connection exhaustion
-- Production: Creates new connection per request
-- Connection string from `MONGODB_URI` env variable
-- Database name from `MONGODB_DB` env variable
-- Collection prefix from `MONGODB_COLLECTION_PREFIX` env variable
+- Uses `pg` Pool with max 5 connections (Cloud SQL limit)
+- Authenticated via GCP service account (`GOOGLE_SERVICE_ACCOUNT_BASE64`)
+- Module-level singleton pool — survives hot reloads in development
+- Single automatic retry on transient connection errors
+- Statement timeout: 30 seconds per query
+- All `NUMERIC` columns parsed as floats; `BIGINT` as integers
+
+### Column Naming
+
+Database stores columns in compressed format (`LAMP01STATUS`, `UVRINTENSITY`). Use `buildTelemetrySelect()` from `lib/telemetry-columns.ts` to alias them to underscore format (`LAMP_01_STATUS`, `UVR_INTENSITY`) for the frontend.
+
+```typescript
+import { buildTelemetrySelect } from '@/lib/telemetry-columns'
+
+const sql = `SELECT ${buildTelemetrySelect()} FROM bwts_iot_telemetry ORDER BY timestamp DESC LIMIT $1`
+```
 
 ---
 
@@ -148,7 +171,7 @@ All data interfaces are defined in `lib/types.ts`:
 
 **Lamp Data Pattern:**
 ```typescript
-// Telemetry includes LAMP_01 through LAMP_16
+// TelemetryReading includes LAMP_01 through LAMP_16
 interface TelemetryReading {
   LAMP_01_STATUS: string
   LAMP_01_POWER: number
@@ -274,71 +297,6 @@ GET /api/health/aggregated?interval=day&startDate=2025-01-01&endDate=2026-01-15
 GET /api/telemetry/chunked?startDate=2025-01-01&endDate=2026-01-15&offset=0&limit=500
 ```
 
-### Component Implementation Pattern
-
-```typescript
-'use client'
-
-import { useState, useEffect } from 'react'
-import { LoadingStage, ChunkedResponse, TelemetryReading } from '@/lib/types'
-import { LOADING_CONFIG } from '@/lib/constants'
-
-export default function ProgressiveDashboard() {
-  const [data, setData] = useState<TelemetryReading[]>([])
-  const [loadingStage, setLoadingStage] = useState<LoadingStage>('initial')
-  const [streamProgress, setStreamProgress] = useState(0)
-
-  // Stage 1: Load aggregated data
-  useEffect(() => {
-    const fetchAggregated = async () => {
-      setLoadingStage('initial')
-      const response = await fetch('/api/telemetry/aggregated?interval=day&hours=720')
-      const aggregated = await response.json()
-      setData(aggregated)
-      setLoadingStage('streaming')
-    }
-    fetchAggregated()
-  }, [])
-
-  // Stage 2: Stream raw data
-  useEffect(() => {
-    if (loadingStage !== 'streaming') return
-
-    const streamRawData = async () => {
-      let offset = 0
-      let hasMore = true
-
-      while (hasMore) {
-        const response = await fetch(`/api/telemetry/chunked?offset=${offset}&limit=500`)
-        const chunk: ChunkedResponse<TelemetryReading> = await response.json()
-
-        // Merge chunk into existing data
-        setData(prevData => [...prevData, ...chunk.data].sort(...))
-        setStreamProgress((offset + 500) / chunk.pagination.total * 100)
-
-        offset += 500
-        hasMore = chunk.pagination.hasMore
-        await new Promise(resolve => setTimeout(resolve, 100))
-      }
-
-      setLoadingStage('complete')
-    }
-    streamRawData()
-  }, [loadingStage])
-
-  return (
-    <div>
-      {/* Charts render immediately with aggregated data */}
-      {loadingStage === 'streaming' && (
-        <div className="fixed bottom-4 right-4">
-          Loading detailed data... {streamProgress.toFixed(0)}%
-        </div>
-      )}
-    </div>
-  )
-}
-```
-
 ---
 
 ## API Routes
@@ -351,7 +309,7 @@ export default function ProgressiveDashboard() {
 | `/api/telemetry/history` | GET | Historical telemetry (query params: `hours`, `limit`) | Array of TelemetryReading |
 | `/api/telemetry/aggregated` | GET | Daily/hourly aggregated data (`interval`, `startDate`, `endDate`) | Array of Aggregated Data |
 | `/api/telemetry/chunked` | GET | Paginated streaming (`startDate`, `endDate`, `offset`, `limit`) | ChunkedResponse |
-| `/api/telemetry/runtime-analysis` | GET | **NEW** - Runtime-based telemetry for all 16 lamps (`startDate`, `endDate`) | Array of TelemetryReading with lamp runtime/efficiency/power |
+| `/api/telemetry/runtime-analysis` | GET | Runtime-based telemetry for all 16 lamps (`startDate`, `endDate`) | Array of TelemetryReading with lamp runtime/efficiency/power |
 | `/api/health` | GET | Latest health score | Single HealthScore |
 | `/api/health/aggregated` | GET | Time-bucketed health scores (`interval`, `startDate`, `endDate`) | Array of Aggregated Health |
 | `/api/events` | GET | Recent events (default: last 10) | Array of Event |
@@ -364,13 +322,16 @@ All routes use this structure:
 
 ```typescript
 import { NextResponse } from 'next/server'
-import { getTelemetryCollection } from '@/lib/mongodb'
+import { query } from '@/lib/db'
+import { buildTelemetrySelect } from '@/lib/telemetry-columns'
 
 export async function GET() {
   try {
-    const collection = await getTelemetryCollection()
-    const data = await collection.find({}).toArray()
-    return NextResponse.json(data)
+    const rows = await query<TelemetryReading>(
+      `SELECT ${buildTelemetrySelect()} FROM bwts_iot_telemetry ORDER BY timestamp DESC LIMIT $1`,
+      [10]
+    )
+    return NextResponse.json(rows)
   } catch (error) {
     console.error('Error:', error)
     return NextResponse.json({ error: 'Failed to fetch data' }, { status: 500 })
@@ -441,9 +402,10 @@ export default function DashboardName() {
 ### Adding a New API Route
 
 1. Create route file: `app/api/your-route/route.ts`
-2. Import MongoDB helper
-3. Export GET/POST/etc. handler
-4. Add `export const dynamic = 'force-dynamic'` for real-time data
+2. Import `query` / `queryOne` from `@/lib/db`
+3. Write parameterized SQL (use `$1`, `$2`, ... placeholders — never string interpolation)
+4. Export GET/POST/etc. handler
+5. Add `export const dynamic = 'force-dynamic'` for real-time data
 
 ### Adding a New Dashboard Component
 
@@ -458,18 +420,19 @@ export default function DashboardName() {
 
 1. Define interfaces in `lib/types.ts`
 2. Export for use across the app
-3. Ensure MongoDB field names match exactly (MongoDB is case-sensitive)
+3. Match field names to the aliased column names (underscore format, e.g. `LAMP_01_STATUS`)
 
 ---
 
 ## Important Notes
 
-### MongoDB Query Performance
+### PostgreSQL Query Performance
 
-- Always use `.sort({ timestamp: -1 })` for latest-first ordering
-- Use `.limit()` to cap result sets (avoid loading entire collections)
-- Create indexes on `timestamp` field for better performance
-- Use aggregation pipeline for complex queries (see `/api/stats`)
+- Always use `ORDER BY timestamp DESC` for latest-first ordering
+- Use `LIMIT` to cap result sets
+- Use `date_trunc()` for time-bucketing aggregations
+- Use `$1`, `$2` parameterized placeholders — never string interpolation (SQL injection risk)
+- The `timestamp` column is `timestamptz` (UTC) across all tables
 
 ### Client-Side Data Fetching
 
@@ -507,12 +470,12 @@ import { Card } from '@/components/ui/card'
 
 ## Troubleshooting
 
-### MongoDB Connection Issues
+### PostgreSQL Connection Issues
 
-- Verify `MONGODB_URI` in `.env.local` is correct
-- Check network access in MongoDB Atlas (whitelist IP)
-- Ensure database name matches `MONGODB_DB` env variable
-- Collection names must follow pattern: `{MONGODB_COLLECTION_PREFIX}_telemetry`
+- Verify all `POSTGRES_*` env vars and `CLOUD_SQL_INSTANCE_CONNECTION_NAME` in `.env`
+- Confirm `GOOGLE_SERVICE_ACCOUNT_BASE64` is a valid base64-encoded service account JSON
+- Check the Cloud SQL instance is running in GCP console (`lifeosai-481608:asia-south1:lifeosai-db`)
+- Pool max is 5 connections — avoid opening extra connections in API routes
 
 ### Port Already in Use
 
@@ -528,7 +491,7 @@ lsof -ti:3000 | xargs kill -9
 ### TypeScript Errors
 
 - Run `npm run build` to check for type errors
-- Ensure all MongoDB fields match types in `lib/types.ts`
+- Ensure aliased field names match types in `lib/types.ts`
 - Use optional chaining (`?.`) for fields that might be undefined
 
 ### Data Not Updating
@@ -536,7 +499,7 @@ lsof -ti:3000 | xargs kill -9
 - Check API route is returning fresh data (not cached)
 - Verify `export const dynamic = 'force-dynamic'` in route
 - Check browser console for fetch errors
-- Confirm MongoDB collections have recent data
+- Confirm Cloud SQL instance has recent data in relevant tables
 
 ---
 
@@ -583,7 +546,7 @@ lsof -ti:3000 | xargs kill -9
 For detailed implementation plans and reports, refer to:
 - `/Users/sriram/.claude/plans/master-plan.md` - Overall project roadmap
 - `/Users/sriram/.claude/plans/dashboard-*-subplan.md` - Individual dashboard specs
-- `/Users/sriram/Developer/IOT/BWTS IOT data/DATA_REFERENCE_GUIDE.md` - Data schema reference
+- `docs/data/schema-overview.mdx` - Full PostgreSQL schema reference
 - `PRODUCTION_READINESS.md` - Build status, deployment checklist, performance metrics
 - `IMPLEMENTATION_SUMMARY.md` - Progressive loading implementation details
 - `DATE_FILTER_FIX.md` - Date filter bug fixes and timeline synchronization

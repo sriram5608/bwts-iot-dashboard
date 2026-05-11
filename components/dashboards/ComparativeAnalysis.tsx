@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
+import { useTranslations, useLocale } from 'next-intl'
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LineChart, Line } from 'recharts'
 import { TrendingUp, Clock, Zap, Calendar } from 'lucide-react'
 import { LoadingStage, ChunkedResponse, TelemetryReading } from '@/lib/types'
@@ -22,6 +23,10 @@ interface LampComparisonData {
 }
 
 export default function ComparativeAnalysis() {
+  const t = useTranslations('ComparativeAnalysis')
+  const tCommon = useTranslations('Common')
+  const locale = useLocale()
+
   const [lamp1, setLamp1] = useState(1)
   const [lamp2, setLamp2] = useState(16)
   const [telemetryData, setTelemetryData] = useState<TelemetryReading[]>([])
@@ -34,7 +39,6 @@ export default function ComparativeAnalysis() {
   useEffect(() => {
     const initializeDates = async () => {
       try {
-        // Get latest timestamp from database
         const response = await fetch('/api/telemetry/latest')
         const latest = await response.json()
         const latestDate = new Date(latest.timestamp)
@@ -46,7 +50,6 @@ export default function ComparativeAnalysis() {
         setEndDate(latestDate.toISOString().split('T')[0])
       } catch (error) {
         console.error('Error initializing dates:', error)
-        // Fallback to today's date
         const today = new Date()
         const oneMonthAgo = new Date(today)
         oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1)
@@ -70,7 +73,6 @@ export default function ComparativeAnalysis() {
         const start = new Date(startDate)
         const end = new Date(endDate)
 
-        // Fetch daily aggregates using absolute date range
         const response = await fetch(`/api/telemetry/aggregated?interval=day&startDate=${start.toISOString()}&endDate=${end.toISOString()}`)
         const aggregatedData = await response.json()
 
@@ -85,7 +87,7 @@ export default function ComparativeAnalysis() {
     fetchInitialData()
   }, [startDate, endDate])
 
-  // Stage 2: Background stream raw data for selected date range
+  // Stage 2: Background stream raw data
   useEffect(() => {
     if (loadingStage !== 'streaming' || !startDate || !endDate) return
 
@@ -105,32 +107,27 @@ export default function ComparativeAnalysis() {
           const chunk: ChunkedResponse<TelemetryReading> = await response.json()
 
           if (chunk.data && chunk.data.length > 0) {
-            // Merge chunk into existing data
             setTelemetryData(prevData => {
               const chunkStart = new Date(chunk.data[0]?.timestamp)
               const chunkEnd = new Date(chunk.data[chunk.data.length - 1]?.timestamp)
 
-              // Remove aggregated data overlapping with chunk date range
               const filtered = prevData.filter(d => {
                 const timestamp = new Date(d.timestamp)
                 return timestamp < chunkStart || timestamp > chunkEnd
               })
 
-              // Insert raw chunk data and sort
               return [...filtered, ...chunk.data].sort((a, b) =>
                 new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
               )
             })
           }
 
-          // Update progress
           const progress = chunk.pagination ? (chunk.pagination.offset + chunk.pagination.limit) / chunk.pagination.total * 100 : 100
           setStreamProgress(Math.min(progress, 100))
 
           offset += chunkSize
           hasMore = chunk.pagination?.hasMore || false
 
-          // Delay to avoid overwhelming browser
           if (hasMore) {
             await new Promise(resolve => setTimeout(resolve, LOADING_CONFIG.STREAM_DELAY))
           }
@@ -147,27 +144,23 @@ export default function ComparativeAnalysis() {
     streamDetailedData()
   }, [loadingStage, startDate, endDate])
 
-  // Calculate days between selected dates
   const daysAnalyzed = useMemo(() => {
     if (!startDate || !endDate) return 0
     const start = new Date(startDate)
     const end = new Date(endDate)
     const diffTime = Math.abs(end.getTime() - start.getTime())
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-    return diffDays
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
   }, [startDate, endDate])
 
-  // Memoized lamp comparison data (hourly grouping)
   const lampComparison = useMemo(() => {
     if (telemetryData.length === 0) return []
 
     const hourlyGroups: Record<string, HourlyGroup> = {}
 
     telemetryData.forEach((item) => {
-      // Group by hour instead of day for more granular data
       const timestamp = new Date(item.timestamp)
       const hourKey = `${timestamp.getMonth() + 1}/${timestamp.getDate()} ${timestamp.getHours()}:00`
-      const displayDate = timestamp.toLocaleString('en-US', {
+      const displayDate = timestamp.toLocaleString(locale, {
         month: 'short',
         day: 'numeric',
         hour: '2-digit',
@@ -201,7 +194,6 @@ export default function ComparativeAnalysis() {
       if (lampCount > 0) hourlyGroups[hourKey].allLampValues.push(lampSum / lampCount)
     })
 
-    // Convert to array and sort by timestamp
     const comparisonData: LampComparisonData[] = Object.values(hourlyGroups)
       .sort((a, b) => a.timestamp - b.timestamp)
       .map((group) => ({
@@ -211,16 +203,15 @@ export default function ComparativeAnalysis() {
         avgAll: group.allLampValues.length > 0 ? group.allLampValues.reduce((a, b) => a + b, 0) / group.allLampValues.length : 0
       }))
 
-    // Downsample to max 300 points for chart clarity (showing hourly data)
     if (comparisonData.length <= 300) return comparisonData
     const step = Math.ceil(comparisonData.length / 300)
     return comparisonData.filter((_, index) => index % step === 0)
-  }, [lamp1, lamp2, telemetryData])
+  }, [lamp1, lamp2, telemetryData, locale])
 
   if (loadingStage === 'initial' && telemetryData.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-slate-400 text-lg">Loading comparison data...</div>
+        <div className="text-slate-400 text-lg">{t('loadingComparisonData')}</div>
       </div>
     )
   }
@@ -232,50 +223,49 @@ export default function ComparativeAnalysis() {
         <div className="fixed bottom-4 right-4 bg-white/80 backdrop-blur-sm rounded-lg px-4 py-2 shadow-lg z-50">
           <div className="flex items-center gap-3">
             <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-            <span className="text-xs text-slate-600">Loading detailed data... {streamProgress.toFixed(0)}%</span>
+            <span className="text-xs text-slate-600">{tCommon('loadingDetailedData', { n: streamProgress.toFixed(0) })}</span>
           </div>
         </div>
       )}
 
       {/* Stats Row with Date Filters */}
       <div className="flex items-start justify-between gap-8">
-        {/* Stats */}
         <div className="grid grid-cols-3 gap-8 flex-1">
-        <div>
-          <p className="text-slate-400 text-[10px] uppercase tracking-wider mb-1">Total Lamps</p>
-          <div className="flex items-center gap-2">
-            <Zap className="w-5 h-5 text-purple-500" />
-            <p className="text-3xl font-light text-purple-600">16</p>
+          <div>
+            <p className="text-slate-400 text-[10px] uppercase tracking-wider mb-1">{t('totalLamps')}</p>
+            <div className="flex items-center gap-2">
+              <Zap className="w-5 h-5 text-purple-500" />
+              <p className="text-3xl font-light text-purple-600">16</p>
+            </div>
+            <p className="text-slate-400 text-xs">{t('activeUvLamps')}</p>
           </div>
-          <p className="text-slate-400 text-xs">active UV lamps</p>
-        </div>
-        <div>
-          <p className="text-slate-400 text-[10px] uppercase tracking-wider mb-1">Data Points</p>
-          <div className="flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-blue-500" />
-            <p className="text-3xl font-light text-blue-600">{telemetryData.length}</p>
+          <div>
+            <p className="text-slate-400 text-[10px] uppercase tracking-wider mb-1">{t('dataPoints')}</p>
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-blue-500" />
+              <p className="text-3xl font-light text-blue-600">{telemetryData.length}</p>
+            </div>
+            <p className="text-slate-400 text-xs">{t('telemetryRecords')}</p>
           </div>
-          <p className="text-slate-400 text-xs">telemetry records</p>
-        </div>
-        <div>
-          <p className="text-slate-400 text-[10px] uppercase tracking-wider mb-1">Time Period</p>
-          <div className="flex items-center gap-2">
-            <Clock className="w-5 h-5 text-orange-500" />
-            <p className="text-3xl font-light text-orange-600">{daysAnalyzed}</p>
+          <div>
+            <p className="text-slate-400 text-[10px] uppercase tracking-wider mb-1">{t('timePeriod')}</p>
+            <div className="flex items-center gap-2">
+              <Clock className="w-5 h-5 text-orange-500" />
+              <p className="text-3xl font-light text-orange-600">{daysAnalyzed}</p>
+            </div>
+            <p className="text-slate-400 text-xs">{t('daysAnalyzed')}</p>
           </div>
-          <p className="text-slate-400 text-xs">days analyzed</p>
-        </div>
         </div>
 
         {/* Date Filter Controls */}
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4 text-slate-400" />
-            <p className="text-slate-400 text-[10px] uppercase tracking-wider">Date Range</p>
+            <p className="text-slate-400 text-[10px] uppercase tracking-wider">{t('dateRange')}</p>
           </div>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <span className="text-slate-500 text-xs">From:</span>
+              <span className="text-slate-500 text-xs">{t('from')}</span>
               <input
                 type="date"
                 value={startDate}
@@ -284,7 +274,7 @@ export default function ComparativeAnalysis() {
               />
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-slate-500 text-xs">To:</span>
+              <span className="text-slate-500 text-xs">{t('to')}</span>
               <input
                 type="date"
                 value={endDate}
@@ -299,29 +289,29 @@ export default function ComparativeAnalysis() {
       {/* Lamp Efficiency Comparison */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <p className="text-slate-400 text-[10px] uppercase tracking-wider">Lamp Efficiency Comparison</p>
+          <p className="text-slate-400 text-[10px] uppercase tracking-wider">{t('lampEfficiencyComparison')}</p>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <span className="text-slate-500 text-xs">Lamp 1:</span>
+              <span className="text-slate-500 text-xs">{t('lamp1Label')}</span>
               <select
                 value={lamp1}
                 onChange={(e) => setLamp1(Number(e.target.value))}
                 className="bg-white/50 border border-slate-200 rounded-lg px-3 py-1.5 text-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20"
               >
                 {Array.from({ length: 16 }, (_, i) => i + 1).map(num => (
-                  <option key={num} value={num}>Lamp {num}</option>
+                  <option key={num} value={num}>{t('lampOption', { num })}</option>
                 ))}
               </select>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-slate-500 text-xs">Lamp 2:</span>
+              <span className="text-slate-500 text-xs">{t('lamp2Label')}</span>
               <select
                 value={lamp2}
                 onChange={(e) => setLamp2(Number(e.target.value))}
                 className="bg-white/50 border border-slate-200 rounded-lg px-3 py-1.5 text-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20"
               >
                 {Array.from({ length: 16 }, (_, i) => i + 1).map(num => (
-                  <option key={num} value={num}>Lamp {num}</option>
+                  <option key={num} value={num}>{t('lampOption', { num })}</option>
                 ))}
               </select>
             </div>
@@ -343,27 +333,28 @@ export default function ComparativeAnalysis() {
                 }}
               />
               <Legend />
-              <Line type="monotone" dataKey="lamp1" stroke="#9333ea" strokeWidth={2} dot={false} name={`Lamp ${lamp1} (%)`} />
-              <Line type="monotone" dataKey="lamp2" stroke="#ef4444" strokeWidth={2} dot={false} name={`Lamp ${lamp2} (%)`} />
-              <Line type="monotone" dataKey="avgAll" stroke="#3b82f6" strokeWidth={2} dot={false} name="Average All (%)" />
+              <Line type="monotone" dataKey="lamp1" stroke="#9333ea" strokeWidth={2} dot={false} name={t('lampSeriesLabel', { num: lamp1 })} />
+              <Line type="monotone" dataKey="lamp2" stroke="#ef4444" strokeWidth={2} dot={false} name={t('lampSeriesLabel', { num: lamp2 })} />
+              <Line type="monotone" dataKey="avgAll" stroke="#3b82f6" strokeWidth={2} dot={false} name={t('averageAll')} />
             </LineChart>
           </ResponsiveContainer>
           {lampComparison.length > 0 && (
             <div className="mt-4 p-4 bg-white/30 rounded-lg">
               <p className="text-slate-600 text-sm">
-                <span className="font-medium text-slate-700">Analysis:</span>{' '}
-                Lamp {lamp2} shows{' '}
-                {Math.abs(
-                  ((lampComparison[lampComparison.length - 1]?.lamp1 - lampComparison[lampComparison.length - 1]?.lamp2) /
-                    lampComparison[lampComparison.length - 1]?.lamp1) * 100
-                ).toFixed(0)}%{' '}
-                difference compared to Lamp {lamp1}.
+                <span className="font-medium text-slate-700">{t('analysisPrefix')}</span>{' '}
+                {t('analysisLampDiff', {
+                  lamp1,
+                  lamp2,
+                  diff: Math.abs(
+                    ((lampComparison[lampComparison.length - 1]?.lamp1 - lampComparison[lampComparison.length - 1]?.lamp2) /
+                      lampComparison[lampComparison.length - 1]?.lamp1) * 100
+                  ).toFixed(0)
+                })}
               </p>
             </div>
           )}
         </div>
       </div>
-
     </div>
   )
 }

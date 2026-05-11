@@ -59,7 +59,7 @@ export async function GET() {
       },
       predictions: { highRisk: predictedFailures }
     })
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Failed to check data' }, { status: 500 })
   }
 }

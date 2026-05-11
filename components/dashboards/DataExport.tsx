@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
+import { useTranslations, useLocale } from 'next-intl'
 import { FileSpreadsheet, FileText, Filter as FilterIcon, Calendar, ChevronLeft, ChevronRight, X } from 'lucide-react'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -23,6 +24,11 @@ interface ColumnFilter {
 }
 
 export default function DataExport() {
+  const t = useTranslations('DataExport')
+  const tCommon = useTranslations('Common')
+  const locale = useLocale()
+  const colLabel = (col: string) => t(`columns.${col}`)
+
   const [data, setData] = useState<TelemetryReading[]>([])
   const [loadingStage, setLoadingStage] = useState<LoadingStage>('initial')
   const [streamProgress, setStreamProgress] = useState(0)
@@ -59,20 +65,17 @@ export default function DataExport() {
         setLoadingStage('initial')
         setStreamProgress(0)
 
-        // Get actual data date range
         const latestRes = await fetch('/api/telemetry/latest')
         const latest = await latestRes.json()
         const latestDate = new Date(latest.timestamp)
 
-        // Fetch daily aggregates for full year
         const response = await fetch('/api/telemetry/aggregated?interval=day&hours=8760')
         const aggregatedData = await response.json()
 
         setData(aggregatedData)
 
-        // Set date range based on actual data
         if (aggregatedData.length > 0) {
-          const dates = aggregatedData.map((r: any) => new Date(r.timestamp))
+          const dates = aggregatedData.map((r: TelemetryReading) => new Date(r.timestamp))
           const minDate = new Date(Math.min(...dates.map((d: Date) => d.getTime())))
           setStartDate(minDate.toISOString().split('T')[0])
           setEndDate(latestDate.toISOString().split('T')[0])
@@ -94,12 +97,10 @@ export default function DataExport() {
 
     const streamDetailedData = async () => {
       try {
-        // Get actual data range
         const latestRes = await fetch('/api/telemetry/latest')
         const latest = await latestRes.json()
         const endDate = new Date(latest.timestamp)
 
-        // Stream full year of data
         const startDate = new Date(endDate)
         startDate.setFullYear(startDate.getFullYear() - 1)
 
@@ -151,11 +152,9 @@ export default function DataExport() {
     streamDetailedData()
   }, [loadingStage])
 
-  // Apply filters
   const filteredData = useMemo(() => {
     let filtered = [...data]
 
-    // Date range filter
     if (startDate && endDate) {
       const start = new Date(startDate)
       start.setHours(0, 0, 0, 0)
@@ -168,7 +167,6 @@ export default function DataExport() {
       })
     }
 
-    // Column filters
     columnFilters.forEach(filter => {
       if (filter.type === 'text' && filter.textValue) {
         filtered = filtered.filter(item => {
@@ -206,9 +204,8 @@ export default function DataExport() {
     }
   }
 
-  // Reset to page 1 when filters change
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCurrentPage(1)
   }, [filteredData.length, recordsPerPage])
 
@@ -217,9 +214,9 @@ export default function DataExport() {
   const indexOfFirstRecord = indexOfLastRecord - recordsPerPage
   const currentRecords = filteredData.slice(indexOfFirstRecord, indexOfLastRecord)
 
-  const formatValue = (value: any, column: string) => {
+  const formatValue = (value: TelemetryReading[keyof TelemetryReading], column: string) => {
     if (value === undefined || value === null) return '-'
-    if (column === 'timestamp') return new Date(value).toLocaleString()
+    if (column === 'timestamp') return new Date(value as string | number | Date).toLocaleString(locale)
     if (typeof value === 'number') return value.toFixed(2)
     if (typeof value === 'boolean') return value ? 'Yes' : 'No'
     return String(value)
@@ -227,7 +224,7 @@ export default function DataExport() {
 
   const exportToCSV = () => {
     const exportData = filteredData.map(row => {
-      const filtered: any = {}
+      const filtered: Record<string, string> = {}
       selectedColumns.forEach(col => {
         filtered[col] = formatValue(row[col as keyof TelemetryReading], col)
       })
@@ -244,18 +241,18 @@ export default function DataExport() {
   const exportToPDF = () => {
     const doc = new jsPDF()
     doc.setFontSize(16)
-    doc.text('BWTS Telemetry Report', 14, 15)
+    doc.text(t('pdfTitle'), 14, 15)
     doc.setFontSize(10)
-    doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 22)
-    doc.text(`Period: ${startDate} to ${endDate}`, 14, 28)
-    doc.text(`Total Records: ${filteredData.length}`, 14, 34)
+    doc.text(t('pdfGenerated', { datetime: new Date().toLocaleString(locale) }), 14, 22)
+    doc.text(t('pdfPeriod', { from: startDate, to: endDate }), 14, 28)
+    doc.text(t('pdfTotalRecords', { n: filteredData.length }), 14, 34)
 
     const tableData = filteredData.slice(0, 100).map(row =>
       selectedColumns.map(col => formatValue(row[col as keyof TelemetryReading], col))
     )
 
     autoTable(doc, {
-      head: [selectedColumns.map(col => col.replace(/_/g, ' '))],
+      head: [selectedColumns.map(col => colLabel(col))],
       body: tableData,
       startY: 40,
       styles: { fontSize: 6, cellPadding: 1 },
@@ -300,7 +297,7 @@ export default function DataExport() {
   if (loadingStage === 'initial' && data.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-slate-400 text-lg">Loading data...</div>
+        <div className="text-slate-400 text-lg">{t('loadingData')}</div>
       </div>
     )
   }
@@ -312,7 +309,7 @@ export default function DataExport() {
         <div className="fixed bottom-4 right-4 bg-white/80 backdrop-blur-sm rounded-lg px-4 py-2 shadow-lg z-50">
           <div className="flex items-center gap-3">
             <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-            <span className="text-xs text-slate-600">Loading detailed data... {streamProgress.toFixed(0)}%</span>
+            <span className="text-xs text-slate-600">{tCommon('loadingDetailedData', { n: streamProgress.toFixed(0) })}</span>
           </div>
         </div>
       )}
@@ -320,26 +317,26 @@ export default function DataExport() {
       {/* Header Stats */}
       <div className="grid grid-cols-4 gap-8">
         <div>
-          <p className="text-slate-400 text-[10px] uppercase tracking-wider mb-1">Total Records</p>
+          <p className="text-slate-400 text-[10px] uppercase tracking-wider mb-1">{t('totalRecords')}</p>
           <p className="text-3xl font-light text-blue-500">{data.length}</p>
-          <p className="text-slate-400 text-xs">in database</p>
+          <p className="text-slate-400 text-xs">{t('inDatabase')}</p>
         </div>
         <div>
-          <p className="text-slate-400 text-[10px] uppercase tracking-wider mb-1">Filtered Records</p>
+          <p className="text-slate-400 text-[10px] uppercase tracking-wider mb-1">{t('filteredRecords')}</p>
           <p className="text-3xl font-light text-purple-600">{filteredData.length}</p>
-          <p className="text-slate-400 text-xs">matching criteria</p>
+          <p className="text-slate-400 text-xs">{t('matchingCriteria')}</p>
         </div>
         <div>
-          <p className="text-slate-400 text-[10px] uppercase tracking-wider mb-1">Date Range</p>
+          <p className="text-slate-400 text-[10px] uppercase tracking-wider mb-1">{t('dateRange')}</p>
           <p className="text-xl font-light text-slate-600">
-            {new Date(startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+            {new Date(startDate).toLocaleDateString(locale, { month: 'short', day: 'numeric' })} - {new Date(endDate).toLocaleDateString(locale, { month: 'short', day: 'numeric' })}
           </p>
-          <p className="text-slate-400 text-xs">selected period</p>
+          <p className="text-slate-400 text-xs">{t('selectedPeriod')}</p>
         </div>
         <div>
-          <p className="text-slate-400 text-[10px] uppercase tracking-wider mb-1">Columns Selected</p>
+          <p className="text-slate-400 text-[10px] uppercase tracking-wider mb-1">{t('columnsSelected')}</p>
           <p className="text-3xl font-light text-emerald-600">{selectedColumns.length}</p>
-          <p className="text-slate-400 text-xs">of {allColumns.length} available</p>
+          <p className="text-slate-400 text-xs">{t('ofNAvailable', { n: allColumns.length })}</p>
         </div>
       </div>
 
@@ -355,7 +352,7 @@ export default function DataExport() {
               onChange={(e) => setStartDate(e.target.value)}
               className="bg-white/50 border border-slate-200 rounded-lg px-3 py-2 text-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
             />
-            <span className="text-slate-400">to</span>
+            <span className="text-slate-400">{tCommon('to')}</span>
             <input
               type="date"
               value={endDate}
@@ -369,7 +366,7 @@ export default function DataExport() {
             <div className="flex flex-wrap gap-2">
               {columnFilters.map(filter => (
                 <div key={filter.column} className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5">
-                  <span className="text-xs font-medium text-blue-700">{filter.column.replace(/_/g, ' ')}</span>
+                  <span className="text-xs font-medium text-blue-700">{colLabel(filter.column)}</span>
                   {filter.type === 'text' && filter.textValue && (
                     <span className="text-xs text-blue-600">contains &quot;{filter.textValue}&quot;</span>
                   )}
@@ -395,21 +392,21 @@ export default function DataExport() {
             className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-br from-emerald-500 to-green-600 text-white rounded-lg font-medium text-sm hover:shadow-lg hover:shadow-emerald-500/25 transition-shadow"
           >
             <FileSpreadsheet className="w-4 h-4" />
-            Export CSV
+            {t('exportCsv')}
           </button>
           <button
             onClick={exportToPDF}
             className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-br from-red-500 to-red-600 text-white rounded-lg font-medium text-sm hover:shadow-lg hover:shadow-red-500/25 transition-shadow"
           >
             <FileText className="w-4 h-4" />
-            Export PDF
+            {t('exportPdf')}
           </button>
         </div>
       </div>
 
       {/* Column Selector */}
       <div>
-        <p className="text-slate-400 text-[10px] uppercase tracking-wider mb-3">Select Columns</p>
+        <p className="text-slate-400 text-[10px] uppercase tracking-wider mb-3">{t('selectColumns')}</p>
         <div className="flex flex-wrap gap-2">
           {allColumns.map(column => (
             <button
@@ -421,7 +418,7 @@ export default function DataExport() {
                   : 'bg-white/50 text-slate-600 hover:bg-white/80'
               }`}
             >
-              {column.replace(/_/g, ' ')}
+              {colLabel(column)}
             </button>
           ))}
         </div>
@@ -430,16 +427,16 @@ export default function DataExport() {
       {/* Data Table */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <p className="text-slate-400 text-[10px] uppercase tracking-wider">Data Preview</p>
+          <p className="text-slate-400 text-[10px] uppercase tracking-wider">{t('dataPreview')}</p>
           <div className="flex items-center gap-4">
             <select
               value={recordsPerPage}
               onChange={(e) => setRecordsPerPage(Number(e.target.value))}
               className="bg-white/50 border border-slate-200 rounded-lg px-3 py-1.5 text-slate-700 text-sm focus:outline-none"
             >
-              <option value={25}>25 per page</option>
-              <option value={50}>50 per page</option>
-              <option value={100}>100 per page</option>
+              <option value={25}>{t('perPage25')}</option>
+              <option value={50}>{t('perPage50')}</option>
+              <option value={100}>{t('perPage100')}</option>
             </select>
             <div className="flex items-center gap-2">
               <button
@@ -449,7 +446,7 @@ export default function DataExport() {
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              <span className="text-slate-600 text-sm">Page {currentPage} of {totalPages || 1}</span>
+              <span className="text-slate-600 text-sm">{tCommon('pageOf', { current: currentPage, total: totalPages || 1 })}</span>
               <button
                 onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                 disabled={currentPage === totalPages || totalPages === 0}
@@ -471,7 +468,7 @@ export default function DataExport() {
                     return (
                       <th key={column} className="text-left text-slate-400 text-[10px] uppercase tracking-wider py-4 px-4 whitespace-nowrap">
                         <div className="flex items-center gap-2 group">
-                          <span>{column.replace(/_/g, ' ')}</span>
+                          <span>{colLabel(column)}</span>
                           <button
                             onClick={() => activeFilter ? setActiveFilterColumn(column) : addColumnFilter(column)}
                             className={`opacity-0 group-hover:opacity-100 transition-opacity ${activeFilter ? 'text-blue-500' : 'text-slate-400 hover:text-slate-600'}`}
@@ -487,7 +484,7 @@ export default function DataExport() {
                               <div>
                                 <input
                                   type="text"
-                                  placeholder="Search..."
+                                  placeholder={t('searchPlaceholder')}
                                   value={activeFilter?.textValue || ''}
                                   onChange={(e) => updateColumnFilter(column, { textValue: e.target.value })}
                                   className="w-full border border-slate-200 rounded px-2 py-1 text-sm text-slate-700"
@@ -500,7 +497,7 @@ export default function DataExport() {
                                 <div className="flex items-center gap-2">
                                   <select
                                     value={activeFilter?.numberCondition1 || 'gt'}
-                                    onChange={(e) => updateColumnFilter(column, { numberCondition1: e.target.value as any })}
+                                    onChange={(e) => updateColumnFilter(column, { numberCondition1: e.target.value as 'gt' | 'lt' | 'eq' | 'gte' | 'lte' })}
                                     className="border border-slate-200 rounded px-2 py-1 text-xs text-slate-700"
                                   >
                                     <option value="gt">&gt;</option>
@@ -511,17 +508,17 @@ export default function DataExport() {
                                   </select>
                                   <input
                                     type="number"
-                                    placeholder="Value"
+                                    placeholder={t('valuePlaceholder')}
                                     value={activeFilter?.numberValue1 ?? ''}
                                     onChange={(e) => updateColumnFilter(column, { numberValue1: e.target.value ? Number(e.target.value) : undefined })}
                                     className="flex-1 border border-slate-200 rounded px-2 py-1 text-sm text-slate-700"
                                   />
                                 </div>
-                                <div className="text-xs text-slate-500 text-center">AND</div>
+                                <div className="text-xs text-slate-500 text-center">{t('andLabel')}</div>
                                 <div className="flex items-center gap-2">
                                   <select
                                     value={activeFilter?.numberCondition2 || 'lt'}
-                                    onChange={(e) => updateColumnFilter(column, { numberCondition2: e.target.value as any })}
+                                    onChange={(e) => updateColumnFilter(column, { numberCondition2: e.target.value as 'gt' | 'lt' | 'eq' | 'gte' | 'lte' })}
                                     className="border border-slate-200 rounded px-2 py-1 text-xs text-slate-700"
                                   >
                                     <option value="gt">&gt;</option>
@@ -532,7 +529,7 @@ export default function DataExport() {
                                   </select>
                                   <input
                                     type="number"
-                                    placeholder="Value"
+                                    placeholder={t('valuePlaceholder')}
                                     value={activeFilter?.numberValue2 ?? ''}
                                     onChange={(e) => updateColumnFilter(column, { numberValue2: e.target.value ? Number(e.target.value) : undefined })}
                                     className="flex-1 border border-slate-200 rounded px-2 py-1 text-sm text-slate-700"
@@ -545,13 +542,13 @@ export default function DataExport() {
                                 onClick={() => setActiveFilterColumn(null)}
                                 className="flex-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded text-xs text-slate-700"
                               >
-                                Close
+                                {t('closeButton')}
                               </button>
                               <button
                                 onClick={() => removeColumnFilter(column)}
                                 className="flex-1 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded text-xs"
                               >
-                                Clear
+                                {t('clearButton')}
                               </button>
                             </div>
                           </div>
@@ -576,15 +573,15 @@ export default function DataExport() {
 
             {currentRecords.length === 0 && (
               <div className="text-center text-slate-400 py-8">
-                No records found matching your filters.
+                {t('noRecordsFound')}
               </div>
             )}
           </div>
         </div>
 
         <div className="mt-4 flex justify-between text-slate-400 text-xs">
-          <span>Showing {indexOfFirstRecord + 1} to {Math.min(indexOfLastRecord, filteredData.length)} of {filteredData.length} records</span>
-          <span>Total in database: {data.length} records</span>
+          <span>{t('showingRecords', { start: indexOfFirstRecord + 1, end: Math.min(indexOfLastRecord, filteredData.length), total: filteredData.length })}</span>
+          <span>{t('totalInDatabase', { total: data.length })}</span>
         </div>
       </div>
 

@@ -1,20 +1,25 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { Calendar, AlertTriangle, DollarSign, Clock, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Prediction } from '@/lib/types'
 
 export default function PredictiveMaintenance() {
-  const [predictions, setPredictions] = useState<any[]>([])
+  const t = useTranslations('PredictiveMaintenance')
+  const tCommon = useTranslations('Common')
+
+  const [predictions, setPredictions] = useState<Prediction[]>([])
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 16
 
   useEffect(() => {
     fetch('/api/predictions?limit=100')
       .then(res => res.json())
-      .then(data => {
-        const lampPredictions = data.filter((p: any) => p.component_type === 'UV_LAMP')
+      .then((data: Prediction[]) => {
+        const lampPredictions = data.filter((p: Prediction) => p.component_type === 'UV_LAMP')
         const uniquePredictions = Object.values(
-          lampPredictions.reduce((acc: any, pred: any) => {
+          lampPredictions.reduce((acc: Record<string, Prediction>, pred: Prediction) => {
             const existing = acc[pred.component_id]
             if (!existing || new Date(pred.timestamp) > new Date(existing.timestamp)) {
               acc[pred.component_id] = pred
@@ -22,7 +27,7 @@ export default function PredictiveMaintenance() {
             return acc
           }, {})
         )
-        const sorted = (uniquePredictions as any[]).sort((a, b) =>
+        const sorted = uniquePredictions.sort((a, b) =>
           (b.predictions?.failure_probability || 0) - (a.predictions?.failure_probability || 0)
         )
         setPredictions(sorted)
@@ -36,7 +41,7 @@ export default function PredictiveMaintenance() {
   const currentPredictions = predictions.slice(startIndex, endIndex)
 
   const atRiskCount = predictions.filter(p => p.predictions?.failure_probability >= 0.5).length
-  const avgRUL = predictions.length > 0 
+  const avgRUL = predictions.length > 0
     ? predictions.reduce((sum, p) => sum + (p.predictions?.remaining_useful_life_hours || 0), 0) / predictions.length
     : 0
 
@@ -47,67 +52,73 @@ export default function PredictiveMaintenance() {
     return { gradient: 'from-green-500 to-green-600', glow: 'rgba(34, 197, 94, 0.4)', text: 'text-emerald-600' }
   }
 
+  const statusLabel = (riskLevel: number) => {
+    if (riskLevel >= 0.7) return t('statusCritical')
+    if (riskLevel >= 0.5) return t('statusHigh')
+    if (riskLevel >= 0.3) return t('statusModerate')
+    return t('statusGood')
+  }
+
   return (
     <div className="space-y-8">
       {/* Stats Row */}
       <div className="grid grid-cols-4 gap-8">
         <div>
-          <p className="text-slate-400 text-[10px] uppercase tracking-wider mb-1">Next Maintenance</p>
+          <p className="text-slate-400 text-[10px] uppercase tracking-wider mb-1">{t('nextMaintenance')}</p>
           <div className="flex items-center gap-2">
             <Calendar className="w-5 h-5 text-purple-500" />
             <p className="text-3xl font-light text-purple-600">15</p>
           </div>
-          <p className="text-slate-400 text-xs">days</p>
+          <p className="text-slate-400 text-xs">{tCommon('days')}</p>
         </div>
         <div>
-          <p className="text-slate-400 text-[10px] uppercase tracking-wider mb-1">At Risk Components</p>
+          <p className="text-slate-400 text-[10px] uppercase tracking-wider mb-1">{t('atRiskComponents')}</p>
           <div className="flex items-center gap-2">
             <AlertTriangle className="w-5 h-5 text-red-500" />
             <p className="text-3xl font-light text-red-500">{atRiskCount}</p>
           </div>
-          <p className="text-slate-400 text-xs">requires attention</p>
+          <p className="text-slate-400 text-xs">{t('requiresAttention')}</p>
         </div>
         <div>
-          <p className="text-slate-400 text-[10px] uppercase tracking-wider mb-1">Est. Savings</p>
+          <p className="text-slate-400 text-[10px] uppercase tracking-wider mb-1">{t('estSavings')}</p>
           <div className="flex items-center gap-2">
             <DollarSign className="w-5 h-5 text-emerald-500" />
             <p className="text-3xl font-light text-emerald-600">13.5K</p>
           </div>
-          <p className="text-slate-400 text-xs">vs reactive</p>
+          <p className="text-slate-400 text-xs">{t('vsReactive')}</p>
         </div>
         <div>
-          <p className="text-slate-400 text-[10px] uppercase tracking-wider mb-1">Avg RUL</p>
+          <p className="text-slate-400 text-[10px] uppercase tracking-wider mb-1">{t('avgRul')}</p>
           <div className="flex items-center gap-2">
             <Clock className="w-5 h-5 text-blue-500" />
             <p className="text-3xl font-light text-blue-500">{avgRUL.toFixed(0)}</p>
           </div>
-          <p className="text-slate-400 text-xs">hours</p>
+          <p className="text-slate-400 text-xs">{tCommon('hours')}</p>
         </div>
       </div>
 
       {/* Predictions Table */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <p className="text-slate-400 text-[10px] uppercase tracking-wider">Component Predictions</p>
-          <p className="text-slate-500 text-xs">{predictions.length} components tracked</p>
+          <p className="text-slate-400 text-[10px] uppercase tracking-wider">{t('componentPredictions')}</p>
+          <p className="text-slate-500 text-xs">{t('componentsTracked', { count: predictions.length })}</p>
         </div>
-        
+
         <div className="bg-white/30 rounded-2xl overflow-hidden">
           <table className="w-full">
             <thead>
               <tr className="border-b border-slate-200/50">
-                <th className="text-left text-slate-400 text-[10px] uppercase tracking-wider py-4 px-6">Component</th>
-                <th className="text-left text-slate-400 text-[10px] uppercase tracking-wider py-4 px-6">RUL (hours)</th>
-                <th className="text-left text-slate-400 text-[10px] uppercase tracking-wider py-4 px-6">Failure Risk</th>
-                <th className="text-left text-slate-400 text-[10px] uppercase tracking-wider py-4 px-6">Efficiency</th>
-                <th className="text-left text-slate-400 text-[10px] uppercase tracking-wider py-4 px-6">Status</th>
+                <th className="text-left text-slate-400 text-[10px] uppercase tracking-wider py-4 px-6">{t('component')}</th>
+                <th className="text-left text-slate-400 text-[10px] uppercase tracking-wider py-4 px-6">{t('rulHours')}</th>
+                <th className="text-left text-slate-400 text-[10px] uppercase tracking-wider py-4 px-6">{t('failureRisk')}</th>
+                <th className="text-left text-slate-400 text-[10px] uppercase tracking-wider py-4 px-6">{t('efficiency')}</th>
+                <th className="text-left text-slate-400 text-[10px] uppercase tracking-wider py-4 px-6">{tCommon('status')}</th>
               </tr>
             </thead>
             <tbody>
               {currentPredictions.map((pred, index) => {
                 const riskLevel = pred.predictions?.failure_probability || 0
                 const style = getLampStyle(riskLevel)
-                const statusText = riskLevel >= 0.7 ? 'Critical' : riskLevel >= 0.5 ? 'High' : riskLevel >= 0.3 ? 'Moderate' : 'Good'
 
                 return (
                   <tr key={index} className="border-b border-slate-100/50 hover:bg-white/30 transition-colors">
@@ -128,7 +139,7 @@ export default function PredictiveMaintenance() {
                     <td className="py-4 px-6">
                       <div className="flex items-center gap-2">
                         <div className={`w-2 h-2 rounded-full bg-gradient-to-br ${style.gradient}`} />
-                        <span className={`text-sm ${style.text}`}>{statusText}</span>
+                        <span className={`text-sm ${style.text}`}>{statusLabel(riskLevel)}</span>
                       </div>
                     </td>
                   </tr>
@@ -142,7 +153,7 @@ export default function PredictiveMaintenance() {
         {totalPages > 1 && (
           <div className="flex items-center justify-between mt-4">
             <p className="text-slate-400 text-xs">
-              Showing {startIndex + 1}-{Math.min(endIndex, predictions.length)} of {predictions.length}
+              {t('showingRange', { start: startIndex + 1, end: Math.min(endIndex, predictions.length), total: predictions.length })}
             </p>
             <div className="flex items-center gap-2">
               <button
@@ -152,7 +163,7 @@ export default function PredictiveMaintenance() {
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              <span className="text-slate-600 text-sm">Page {currentPage} of {totalPages}</span>
+              <span className="text-slate-600 text-sm">{tCommon('pageOf', { current: currentPage, total: totalPages })}</span>
               <button
                 onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                 disabled={currentPage === totalPages}
@@ -168,12 +179,12 @@ export default function PredictiveMaintenance() {
       {/* Bottom Row: Maintenance Schedule + Cost Comparison */}
       <div className="grid grid-cols-2 gap-8">
         <div>
-          <p className="text-slate-400 text-[10px] uppercase tracking-wider mb-4">Upcoming Maintenance</p>
+          <p className="text-slate-400 text-[10px] uppercase tracking-wider mb-4">{t('upcomingMaintenance')}</p>
           <div className="space-y-3">
             {[
-              { task: 'UV Lamp Replacement', detail: 'Lamps 3, 7, 12', days: 15, urgent: true },
-              { task: 'Filter Cleaning', detail: 'Backflush cycle', days: 45, urgent: false },
-              { task: 'LDC Fan Service', detail: 'Inspection & cleaning', days: 60, urgent: false },
+              { task: t('taskUvLampReplacement'), detail: t('taskUvLampDetail'), days: 15, urgent: true },
+              { task: t('taskFilterCleaning'), detail: t('taskFilterDetail'), days: 45, urgent: false },
+              { task: t('taskLdcFanService'), detail: t('taskLdcDetail'), days: 60, urgent: false },
             ].map((item, i) => (
               <div key={i} className="flex items-center justify-between p-4 bg-white/30 rounded-xl hover:bg-white/50 transition-colors">
                 <div>
@@ -181,7 +192,7 @@ export default function PredictiveMaintenance() {
                   <p className="text-slate-400 text-xs">{item.detail}</p>
                 </div>
                 <div className={`text-sm font-medium ${item.urgent ? 'text-orange-500' : 'text-emerald-600'}`}>
-                  {item.days} days
+                  {item.days} {tCommon('days')}
                 </div>
               </div>
             ))}
@@ -189,11 +200,11 @@ export default function PredictiveMaintenance() {
         </div>
 
         <div>
-          <p className="text-slate-400 text-[10px] uppercase tracking-wider mb-4">Cost Comparison</p>
+          <p className="text-slate-400 text-[10px] uppercase tracking-wider mb-4">{t('costComparison')}</p>
           <div className="bg-white/30 rounded-xl p-6 space-y-4">
             <div>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-slate-500 text-sm">Reactive Maintenance</span>
+                <span className="text-slate-500 text-sm">{t('reactiveMaintenance')}</span>
                 <span className="text-red-500 font-semibold">$18,500</span>
               </div>
               <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
@@ -202,7 +213,7 @@ export default function PredictiveMaintenance() {
             </div>
             <div>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-slate-500 text-sm">Predictive Maintenance</span>
+                <span className="text-slate-500 text-sm">{t('predictiveMaintenance')}</span>
                 <span className="text-emerald-600 font-semibold">$5,000</span>
               </div>
               <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
@@ -211,10 +222,10 @@ export default function PredictiveMaintenance() {
             </div>
             <div className="pt-4 border-t border-slate-200/50">
               <div className="flex items-center justify-between">
-                <span className="text-slate-700 font-medium">Annual Savings</span>
+                <span className="text-slate-700 font-medium">{t('annualSavings')}</span>
                 <span className="text-2xl font-light text-emerald-600">$13,500</span>
               </div>
-              <p className="text-slate-400 text-xs mt-1">73% cost reduction</p>
+              <p className="text-slate-400 text-xs mt-1">{t('costReduction')}</p>
             </div>
           </div>
         </div>

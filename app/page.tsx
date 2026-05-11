@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import FluidOverview from '@/components/dashboards/FluidOverview'
 import PredictiveMaintenance from '@/components/dashboards/PredictiveMaintenance'
 import TrendAnalysis from '@/components/dashboards/TrendAnalysis'
@@ -8,17 +9,18 @@ import ComplianceMonitoring from '@/components/dashboards/ComplianceMonitoring'
 import ComparativeAnalysis from '@/components/dashboards/ComparativeAnalysis'
 import DataExport from '@/components/dashboards/DataExport'
 
-const tabs = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'predictive', label: 'Predictive' },
-  { id: 'trends', label: 'Trends' },
-  { id: 'compliance', label: 'Compliance' },
-  { id: 'comparative', label: 'Comparative' },
-  { id: 'export', label: 'Export' },
-]
-
 export default function DashboardPage() {
+  const t = useTranslations('Navigation')
   const [activeTab, setActiveTab] = useState('overview')
+
+  const tabs = [
+    { id: 'overview', label: t('overview') },
+    { id: 'predictive', label: t('predictive') },
+    { id: 'trends', label: t('trends') },
+    { id: 'compliance', label: t('compliance') },
+    { id: 'comparative', label: t('comparative') },
+    { id: 'export', label: t('export') },
+  ]
 
   return (
     <div 

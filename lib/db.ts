@@ -52,7 +52,7 @@ async function initPool(): Promise<Pool> {
     ipType: IpAddressTypes.PUBLIC,
   })
 
-  try { unlinkSync(tmpPath) } catch (_) {}
+  try { unlinkSync(tmpPath) } catch { }
 
   const pool = new Pool({
     ...clientOpts,
