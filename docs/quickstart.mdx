@@ -1,0 +1,79 @@
+---
+title: "Getting Started"
+description: "Access your BWTS dashboard and take a first look at the six monitoring views."
+---
+
+<Card title="Open the Live Dashboard" icon="arrow-up-right-from-square" href="https://ballast-water-treatment-system.apps.metaweave.in" horizontal>
+  Your dashboard is hosted on Vercel and accessible from any browser — no installation required.
+</Card>
+
+## Accessing the dashboard
+
+The dashboard is a web application hosted on Vercel. Open the link above in any modern browser (Chrome, Safari, Firefox, Edge). No software installation, plugins, or account creation is needed.
+
+<Tip>
+  The dashboard is optimised for desktop and widescreen displays. For the best experience use a screen resolution of 1280 × 800 or wider.
+</Tip>
+
+## Navigating the six tabs
+
+At the top of the screen you will see a floating navigation bar with six tabs:
+
+<Steps>
+  <Step title="Overview">
+    The default view. Shows the 16-lamp diamond array colour-coded by efficiency, live UV intensity, system health gauge, flow rate, and the last active alarms. This is the screen to keep open during a ballasting or deballasting operation.
+  </Step>
+  <Step title="Predictive">
+    Shows remaining useful life and failure probability for each of the 16 UV lamps, ranked from highest risk to lowest. Use this view when planning maintenance at the next port call.
+  </Step>
+  <Step title="Trends">
+    Historical charts for system health, UV intensity, and lamp efficiency over a selectable date range. Includes runtime-based degradation curves per lamp. Data loads progressively — the charts appear immediately and sharpen in the background.
+  </Step>
+  <Step title="Compliance">
+    Live IMO D-2 and USCG compliance status with a full system event audit trail. Use this view before entering port to confirm regulatory standards are met.
+  </Step>
+  <Step title="Comparative">
+    Side-by-side efficiency comparison between any two of the 16 lamps over time. Useful for validating lamp replacements and identifying asymmetric degradation.
+  </Step>
+  <Step title="Export">
+    Download telemetry records as CSV or PDF with Excel-style column filters. Use for supplementary Ballast Water Record Book documentation.
+  </Step>
+</Steps>
+
+## What the dashboard monitors
+
+<CardGroup cols={2}>
+  <Card title="16 UV Lamps" icon="lightbulb">
+    Each lamp is tracked individually — status, efficiency %, runtime hours, and power draw.
+  </Card>
+  <Card title="UV Intensity" icon="sun">
+    Live W/m² reading checked against IMO D-2 (252 W/m²) and USCG (530 W/m²) thresholds.
+  </Card>
+  <Card title="System Health" icon="heart-pulse">
+    A 0–100 composite score reflecting UV output, lamp condition, power efficiency, and thermal management.
+  </Card>
+  <Card title="Predictive Maintenance" icon="calendar-check">
+    ML-based failure probability and remaining useful life per lamp, updated continuously.
+  </Card>
+</CardGroup>
+
+## Data refresh
+
+The **Overview** tab refreshes automatically every 30 seconds. All other tabs load data on demand when you navigate to them or change the date range filter. The underlying telemetry is recorded every three minutes from the shipboard BWTS controller.
+
+## Where to go next
+
+<CardGroup cols={2}>
+  <Card title="BWTS Overview" icon="ship" href="/concepts/bwts-overview">
+    Understand the ballast water treatment cycle and the 16-lamp UV array.
+  </Card>
+  <Card title="Compliance Standards" icon="shield-check" href="/concepts/imo-d2-regulation">
+    Learn what IMO D-2 and USCG standards require and how the dashboard tracks them.
+  </Card>
+  <Card title="Product Tour" icon="map" href="/product/overview-tab">
+    A detailed walkthrough of every element on each dashboard tab.
+  </Card>
+  <Card title="Data Export" icon="file-export" href="/product/data-export-tab">
+    How to download telemetry records for compliance documentation.
+  </Card>
+</CardGroup>

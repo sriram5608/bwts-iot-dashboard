@@ -1,0 +1,55 @@
+---
+title: "What is a Ballast Water Treatment System"
+description: "Primer on ballast water operations, why UV treatment is used, and the role of the 16-lamp array."
+---
+
+## Why ships carry ballast water
+
+When a cargo vessel offloads its freight, it becomes too light to sail safely. Ships compensate by pumping seawater into dedicated ballast tanks to maintain stability, trim, and propeller immersion. This water — taken on at the origin port — contains microorganisms, bacteria, algae, and larvae native to that location.
+
+When the ship arrives at the destination port and pumps the ballast water out, those organisms are released into a foreign marine environment. Without natural predators or competition, invasive species can dominate local ecosystems, causing irreversible ecological and economic damage.
+
+## The treatment cycle
+
+A BWTS treats water **twice**:
+
+| Operation | When | Purpose |
+|-----------|------|---------|
+| `BALLAST` | Water enters the tanks at origin port | Kill organisms before they enter the ship |
+| `DEBALLAST` | Water is discharged at destination port | Ensure no surviving organisms are released |
+
+Both operation types appear as `operation_type` values in the telemetry data. The system must be actively treating (lamps on, flow within limits) during both operations to be compliant.
+
+## UV treatment method
+
+This system uses **ultraviolet light** to disinfect ballast water. UV-C radiation at the correct intensity disrupts the DNA of microorganisms, rendering them unable to reproduce — even if they survive passage through the UV reactor.
+
+The critical metric is **UV intensity**, measured in W/m² at the reactor sensor. The higher the intensity, the more effective the treatment:
+
+- Below 252 W/m² → non-compliant with IMO D-2
+- 252–530 W/m² → IMO D-2 compliant, not USCG compliant
+- Above 530 W/m² → compliant with both IMO D-2 and USCG standards
+
+## The 16-lamp diamond array
+
+This installation uses **16 UV lamps** arranged in a diamond pattern across the reactor cross-section. The arrangement ensures full coverage of water flow with no untreated channels. Having 16 lamps provides two key advantages:
+
+1. **Redundancy** — The system remains operational even if several lamps fail or degrade, as long as aggregate intensity stays above compliance thresholds.
+2. **Progressive replacement** — Lamps can be replaced individually during port calls without taking the entire system offline.
+
+The dashboard's Overview tab displays the 16 lamps in their physical diamond layout, colour-coded by efficiency.
+
+## System components referenced in telemetry
+
+| Prefix | Component | Monitors |
+|--------|-----------|---------|
+| `UVR_` | UV Reactor | Intensity, power output, water temperature |
+| `LDC_` | Lamp Drive Controller | Air temperature, fan speed, fan status |
+| `FLT_` | Filter System | Differential pressure, backflush cycles |
+| `SYS_` | Flow & Pressure instruments | Flow rate, pressure, valve position, volumes |
+| `PLC_` | PLC Controller | CPU usage, RAM usage, CPU temperature |
+| `LAMP_XX_` | Individual Lamp (01–16) | Status, efficiency, runtime, power |
+
+## Where operations happen
+
+The `location` field in telemetry records the port name where each operation takes place. Ballasting and deballasting always occur during port calls — treatment is not active at sea.

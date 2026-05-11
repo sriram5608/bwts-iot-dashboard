@@ -1,0 +1,66 @@
+---
+title: "Technology Stack"
+description: "All libraries, frameworks, and services used in the BWTS dashboard."
+---
+
+## Runtime and framework
+
+| Technology | Version | Role |
+|------------|---------|------|
+| Next.js | 16.1.3 | App Router, API routes, rendering |
+| React | 19.2.3 | UI component library |
+| TypeScript | 5+ | Strict type checking throughout |
+
+## Database
+
+| Technology | Version | Role |
+|------------|---------|------|
+| PostgreSQL | 14+ | Primary data store hosted on Google Cloud SQL |
+| `pg` (node-postgres) | 8.20.0 | Database client and connection pooling |
+| `@google-cloud/cloud-sql-connector` | 1.9.1 | IAM-authenticated connection to Cloud SQL |
+
+Custom type parsers are registered at pool initialisation:
+- `NUMERIC` / `DECIMAL` columns parsed as JavaScript floats (not strings)
+- `INT8` / `BIGINT` columns parsed as JavaScript integers (not strings)
+
+## Styling
+
+| Technology | Version | Role |
+|------------|---------|------|
+| Tailwind CSS | 4 | Utility-first CSS framework |
+| `tailwind-merge` | 3.4.0 | Conditional class merging |
+| `clsx` | 2.1.1 | Conditional className logic |
+
+## UI components
+
+| Technology | Version | Role |
+|------------|---------|------|
+| shadcn/ui | — | Component library built on Radix UI primitives |
+| Lucide React | 0.562.0 | Icon library |
+
+shadcn/ui components in use: `Tabs`, `Card`, `Progress`, `Alert`, `Badge`, `Table`, `Button`, `Skeleton`
+
+## Charts
+
+| Technology | Version | Role |
+|------------|---------|------|
+| Recharts | 3.6.0 | Composable chart library for all trend and comparison charts |
+
+The Overview tab's health arc gauge is a hand-crafted SVG element.
+
+## Export libraries
+
+| Technology | Version | Role |
+|------------|---------|------|
+| jsPDF | 4.0.0 | PDF generation for the Data Export tab |
+| jspdf-autotable | 5.0.7 | Table formatting within PDF exports |
+| PapaParse | 5.5.3 | CSV generation for the Data Export tab |
+
+PDF exports cap at 100 rows. CSV exports include all filtered records.
+
+## Deployment
+
+| Service | Role |
+|---------|------|
+| Vercel | Hosting, serverless function execution, automatic deployments |
+| Google Cloud SQL | Managed PostgreSQL hosting on GCP |

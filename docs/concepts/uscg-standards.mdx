@@ -1,0 +1,67 @@
+---
+title: "USCG Type Approval Standards"
+description: "The United States Coast Guard's stricter ballast water discharge standard and what it means for UV systems."
+---
+
+## USCG authority and scope
+
+The United States Coast Guard enforces **33 CFR Part 151** for ballast water management on vessels operating in US waters. This regulation applies to vessels of 300 gross registered tons or more that operate in the US Exclusive Economic Zone and take on or discharge ballast water.
+
+The USCG standard is **more stringent than IMO D-2** and requires separate type approval from the USCG.
+
+## The USCG numeric standard
+
+| Organism category | USCG limit | IMO D-2 limit | Difference |
+|-------------------|-----------|---------------|------------|
+| Organisms ≥ 50 μm | < 0.01 per m³ | < 10 per m³ | 1,000× stricter |
+| Organisms 10–50 μm | < 0.01 per mL | < 10 per mL | 1,000× stricter |
+| Indicator microbes | Same as D-2 | Same as D-2 | Equal |
+
+## UV intensity requirement
+
+To reliably achieve the USCG standard, UV systems must operate at a minimum intensity of:
+
+```
+530 W/m²
+```
+
+This value is defined in the codebase as `THRESHOLDS.UV_INTENSITY.USCG_MIN`.
+
+## The three intensity zones
+
+| UV Intensity | IMO D-2 | USCG | Dashboard Status |
+|-------------|---------|------|-----------------|
+| ≥ 530 W/m² | ✅ Compliant | ✅ Compliant | Green — both standards met |
+| 252–529 W/m² | ✅ Compliant | ⚠️ Non-compliant | Yellow warning — IMO only |
+| < 252 W/m² | ❌ Non-compliant | ❌ Non-compliant | Red — neither standard met |
+
+## How the dashboard checks USCG compliance
+
+The Compliance tab evaluates the latest `UVR_INTENSITY` reading:
+
+```
+USCG = COMPLIANT  if UVR_INTENSITY >= 530
+USCG = WARNING    if 252 <= UVR_INTENSITY < 530
+USCG = NON-COMPLIANT  if UVR_INTENSITY < 252
+```
+
+The "WARNING" state (yellow) indicates the system is operating within the IMO marginal zone but below USCG requirements. This is significant if the vessel is operating in or transiting to US waters.
+
+## Operational implications
+
+When a vessel is bound for a US port:
+
+1. Check the Compliance tab to confirm the USCG item is green before entering the Exclusive Economic Zone.
+2. Use the Trend Analysis tab with the upcoming voyage's date range to verify intensity has been sustained, not just at the moment of checking.
+3. If the USCG item shows yellow, investigate lamp efficiency in the Predictive Maintenance tab — power compensation may be masking lamp degradation that will worsen under higher-intensity demand.
+
+## USCG type approval
+
+Each make and model of BWTS must receive separate USCG type approval before being used to treat ballast water in US waters. The **Certification Validity** item on the Compliance tab tracks whether the installation's certification is current. In the demo dashboard this is set to a static future expiry date; in a production deployment this should be updated whenever certification is renewed.
+
+## References
+
+- 33 CFR Part 151 — USCG Ballast Water Discharge Standard
+- USCG Marine Safety Information Bulletin 01-19 — Type Approval programme
+- [USCG Compliance Monitoring](/product/compliance-tab) — product page
+- [IMO D-2 Standard](/concepts/imo-d2-regulation) — comparison regulation

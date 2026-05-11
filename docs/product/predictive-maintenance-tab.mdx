@@ -1,0 +1,85 @@
+---
+title: "Predictive Maintenance Tab"
+description: "ML-based failure probability, remaining useful life per lamp, and scheduled maintenance cost analysis."
+---
+
+<Frame caption="Predictive Maintenance Tab — component predictions sorted by failure risk">
+  <img src="/images/predictive/maintenance-table.png" alt="Predictive maintenance table showing 16 lamps with RUL hours, failure probability, and efficiency" />
+</Frame>
+
+## What this tab shows
+
+The Predictive Maintenance tab surfaces pre-computed ML predictions for every UV lamp. It helps engineers prioritise which lamps to replace at the next port call and quantifies the cost benefit of acting on predictions rather than waiting for failures.
+
+Data is fetched from `/api/predictions?limit=100`. The tab filters to `component_type === 'UV_LAMP'`, deduplicates to the latest prediction per lamp by comparing timestamps, then sorts by `failure_probability` descending so the most at-risk lamps appear first.
+
+## Summary stat row
+
+| Stat | Description |
+|------|-------------|
+| Next Maintenance | Days until the next scheduled maintenance event |
+| At Risk Components | Count of lamps with `failure_probability ≥ 0.5` |
+| Est. Savings | Annual cost reduction from predictive vs reactive maintenance |
+| Avg RUL | Mean remaining useful life (hours) across all 16 lamps |
+
+## Component predictions table
+
+Each row represents one UV lamp with four columns:
+
+| Column | Source field | Description |
+|--------|-------------|-------------|
+| Component | `component_id` | Lamp name (LAMP\_01 through LAMP\_16) with colour-coded risk dot |
+| RUL | `predictions.remaining_useful_life_hours` | Predicted hours of useful life remaining |
+| Failure Risk % | `predictions.failure_probability × 100` | Predicted probability of failure |
+| Efficiency % | `predictions.efficiency_percent` | Current lamp efficiency from the prediction model |
+| Status | `current_state.status` | OPERATIONAL, DEGRADED, or FAILED |
+
+### Risk thresholds
+
+| Failure probability | Risk level | Row colour |
+|--------------------|-----------|-----------|
+| ≥ 70% | Critical | Red |
+| 50–69% | High | Orange |
+| 30–49% | Moderate | Yellow |
+| < 30% | Good | Green |
+
+## Upcoming Maintenance section
+
+Three upcoming maintenance tasks are shown with urgency indicators:
+
+| Task | Interval |
+|------|---------|
+| UV Lamp Replacement (priority lamps) | Based on RUL predictions |
+| Filter Cleaning (backflush service) | Scheduled interval |
+| LDC Fan Service | Scheduled interval |
+
+<Tip>
+  In the demo dashboard, maintenance schedules are illustrative. In a production deployment these should be derived from the RUL values and integrated with your maintenance management system.
+</Tip>
+
+## Cost Comparison panel
+
+<Frame caption="Cost comparison — reactive vs predictive maintenance">
+  <img src="/images/predictive/cost-comparison.png" alt="Bar chart comparing reactive maintenance cost of $18,500 against predictive maintenance cost of $5,000" />
+</Frame>
+
+A bar chart compares two maintenance strategies:
+
+| Strategy | Annual cost | Assumptions |
+|----------|-------------|-------------|
+| Reactive | $18,500 | Emergency lamp replacements, unplanned downtime, expedited parts |
+| Predictive | $5,000 | Bulk replacement during planned port calls, standard lead times |
+| Savings | $13,500 (73%) | |
+
+The cost model illustrates the financial case for acting on RUL predictions. Actual savings depend on vessel schedule and parts procurement.
+
+## How to interpret RUL
+
+- **RUL = 0**: Failure is predicted to be imminent. Replace at the earliest opportunity.
+- **RUL = 500h**: At a 3-minute telemetry interval (20 readings/hour), approximately 10,000 more readings before predicted failure — roughly 25 days of continuous operation.
+- **RUL = 2,500h** on a new lamp: Lamp is at approximately 17% of rated life consumed. No action needed.
+
+## Source
+
+- `/api/predictions?limit=100` — all ML predictions
+- Client-side deduplication and sorting (no secondary API call for sorting)

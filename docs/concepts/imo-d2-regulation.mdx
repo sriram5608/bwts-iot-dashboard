@@ -1,0 +1,64 @@
+---
+title: "IMO D-2 Standard"
+description: "What the IMO Ballast Water Management Convention requires and how the dashboard tracks it."
+---
+
+## The IMO Ballast Water Management Convention
+
+The International Maritime Organization's **Ballast Water Management Convention** was adopted in 2004 and entered into force in September 2017. It applies to all ships that carry ballast water on international voyages.
+
+**Regulation D-2** sets the discharge standard — the maximum number of living organisms permitted in treated ballast water at the point of discharge.
+
+## D-2 discharge standard
+
+| Organism category | Maximum permitted |
+|-------------------|------------------|
+| Organisms ≥ 50 μm (e.g., zooplankton) | < 10 per cubic metre |
+| Organisms 10–50 μm (e.g., phytoplankton) | < 10 per millilitre |
+| Indicator microbe: *E. coli* | < 250 CFU per 100 mL |
+| Indicator microbe: Intestinal enterococci | < 100 CFU per 100 mL |
+| Indicator microbe: Toxicogenic *V. cholerae* | < 1 CFU per 100 mL |
+
+## The UV intensity proxy
+
+UV-based BWTS systems demonstrate treatment efficacy through **sustained UV intensity** rather than direct organism counting. Under the IMO G8 guidelines for UV systems, a minimum operational intensity of:
+
+```
+252 W/m²
+```
+
+correlates with achieving the D-2 organism limits under normal operating conditions. This value is defined in the codebase as `THRESHOLDS.UV_INTENSITY.IMO_MIN`.
+
+## How the dashboard checks D-2 compliance
+
+The Compliance tab compares the most recent `UVR_INTENSITY` reading against the 252 W/m² threshold in real time:
+
+```
+IMO D-2 = COMPLIANT  if UVR_INTENSITY >= 252
+IMO D-2 = NON-COMPLIANT  if UVR_INTENSITY < 252
+```
+
+This is a live check on the latest telemetry record — not a stored compliance log. For a historical record of intensity values, use the [Data Export tab](/product/data-export-tab) to download timestamped telemetry.
+
+## Record-keeping obligations
+
+Ships must maintain a **Ballast Water Record Book** documenting every ballasting and deballasting operation. The dashboard supports this in two ways:
+
+- **Audit Trail** (Compliance tab) — shows the last 8 system events: PROCESS\_START, PROCESS\_STOP, and ALARM\_TRIGGERED, each with a timestamp and location.
+- **CSV Export** (Data Export tab) — provides a full timestamped record of `UVR_INTENSITY`, `operation_type`, and `location` for every telemetry reading within the selected date range.
+
+<Tip>
+  For regulatory submissions, export a CSV filtered to the voyage date range and include the columns: `timestamp`, `operation_type`, `location`, and `UVR_INTENSITY`. This provides the core evidence trail for each ballasting event.
+</Tip>
+
+## Important limitation
+
+<Warning>
+  This dashboard provides operational monitoring only. It does not constitute an official type-approved BWTS compliance certificate and does not replace statutory surveys, port state control inspections, or the certified BWTS logbook entries required by the convention.
+</Warning>
+
+## References
+
+- IMO MEPC.173(58) — Ballast Water Management Convention
+- IMO MEPC.G8 — Guidelines for approval of BWTS using UV radiation
+- [IMO D-2 Compliance Monitoring](/product/compliance-tab) — product page

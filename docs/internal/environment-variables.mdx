@@ -1,0 +1,54 @@
+---
+title: "Environment Variables"
+description: "All required environment variables for connecting to Cloud SQL and GCP."
+---
+
+<Warning>
+  This page is intended for the engineering team deploying and maintaining the application. Environment variable values should never be shared outside of your secure secrets management system.
+</Warning>
+
+## Required variables
+
+| Variable | Format | Description |
+|----------|--------|-------------|
+| `POSTGRES_USER` | string | Database user name |
+| `POSTGRES_PASSWORD` | string | Database user password |
+| `POSTGRES_DB` | string | Database name |
+| `CLOUD_SQL_INSTANCE_CONNECTION_NAME` | `project:region:instance` | Full Cloud SQL connection identifier |
+| `GOOGLE_SERVICE_ACCOUNT_BASE64` | base64 string | GCP service account JSON, base64-encoded |
+
+## How GOOGLE\_SERVICE\_ACCOUNT\_BASE64 works
+
+The service account JSON is stored as a base64-encoded string to allow single-line storage in Vercel's environment variable system. At runtime, `lib/db.ts` decodes this string, writes the JSON to a temporary file, passes it to the Cloud SQL connector, then deletes the temporary file immediately. The credential never persists on disk between requests.
+
+To generate the base64 value from a service account key file:
+```bash
+base64 -i service-account.json | tr -d '\n'
+```
+
+## GCP service account requirements
+
+The service account must have:
+
+- **Cloud SQL Client** IAM role on the GCP project
+- **SELECT** privilege on all five `bwts_iot_*` tables in PostgreSQL
+
+No write access or superuser privileges are required.
+
+## Setting variables on Vercel
+
+Variables are configured in the Vercel project dashboard under **Settings → Environment Variables**. Set each variable for the **Production**, **Preview**, and **Development** scopes as appropriate. Re-deploy after any variable change.
+
+## CLOUD\_SQL\_INSTANCE\_CONNECTION\_NAME format
+
+```
+{GCP_PROJECT_ID}:{REGION}:{INSTANCE_NAME}
+```
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---------|-------------|-----|
+| `invalid client credentials` | Base64 value truncated or has line breaks | Re-generate with `base64 -i key.json \| tr -d '\n'` |
+| `ECONNREFUSED` / connection timeout | Wrong `CLOUD_SQL_INSTANCE_CONNECTION_NAME` | Verify format matches GCP Cloud SQL console |
+| `statement_timeout` errors | Missing index on `timestamp` column | Add index: `CREATE INDEX ON bwts_iot_telemetry (timestamp);` |

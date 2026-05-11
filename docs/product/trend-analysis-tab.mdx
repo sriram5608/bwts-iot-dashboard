@@ -1,0 +1,99 @@
+---
+title: "Trend Analysis Tab"
+description: "Historical UV, health, and lamp efficiency trends with date-range filtering and runtime-based degradation charts."
+---
+
+<Frame caption="Trend Analysis — health evolution and UV intensity over the selected date range">
+  <img src="/images/trends/health-chart.png" alt="System health evolution chart with overall, UV, and lamp health trend lines" />
+</Frame>
+
+## How data loads
+
+The Trend Analysis tab uses **two-stage progressive loading** to deliver an instant render even with a year of data:
+
+**Stage 1 — Instant render (< 500 ms)**
+Daily aggregated data is fetched from `/api/telemetry/aggregated` and `/api/health/aggregated`. This returns 30–365 rows (~50 KB) and the charts render immediately.
+
+**Stage 2 — Background streaming**
+Raw 3-minute records are streamed via `/api/telemetry/chunked` in 500-record chunks with a 100ms pause between each chunk. Charts progressively sharpen as raw data replaces the aggregated view. A progress indicator appears in the bottom-right corner during streaming. Streaming is skipped automatically if total records exceed 50,000.
+
+See [Progressive Data Loading](/methodology/progressive-loading) for the full technical explanation.
+
+## Date range filter
+
+Controls at the top-right of the tab set the start and end date for all charts. The default range is 30 days back from the most recent telemetry record. Changing the date range triggers a fresh data load.
+
+## Summary stat row
+
+| Stat | Description |
+|------|-------------|
+| Health Trend | Percentage change in overall health score across the selected period, with a green (up) or red (down) trend icon |
+| Avg Efficiency | Mean lamp efficiency across all 16 lamps for the period |
+| Avg UV Intensity | Mean `UVR_INTENSITY` in W/m² for the period |
+| Data Points | Number of telemetry records loaded (aggregated + raw) |
+
+## System Health Evolution chart
+
+A line chart with three series over the selected date range:
+
+| Series | Colour | Field |
+|--------|--------|-------|
+| Overall Health | Purple | `overall_score` |
+| UV Health | Blue | `components.uv_health` |
+| Lamp Health | Green | `components.lamp_health` |
+
+Y-axis: 0–100 score. X-axis: date. Useful for spotting correlations between UV intensity drops and lamp health degradation.
+
+## UV Intensity Over Time chart
+
+Full-width line chart showing `UVR_INTENSITY` in W/m² over the selected date range. X-axis labels are angled for readability. Use this chart to verify sustained compliance above the IMO threshold (252 W/m²) or USCG threshold (530 W/m²) over an extended period.
+
+## Lamp Efficiency Heatmap
+
+An 8 × 2 grid of 16 cells — one per lamp — showing the period-average efficiency for each lamp. Colour coding matches the Overview tab's diamond array:
+
+| Colour | Efficiency |
+|--------|-----------|
+| Green | ≥ 90% |
+| Yellow | 70–89% |
+| Orange | 50–69% |
+| Red | < 50% |
+
+Use this to identify which specific lamps are underperforming over the chosen period without inspecting the Comparative Analysis tab.
+
+## Lamp Efficiency & Power vs Runtime chart
+
+<Frame caption="Lamp efficiency and power vs cumulative runtime hours">
+  <img src="/images/trends/runtime-chart.png" alt="Dual Y-axis chart showing lamp efficiency degradation (purple) and power compensation (blue) over runtime hours" />
+</Frame>
+
+A dual Y-axis chart showing how a selected lamp performs as it accumulates operating hours:
+
+| Axis | Series | Description |
+|------|--------|-------------|
+| Left Y-axis | Lamp Efficiency % (purple, solid) | Efficiency decline over runtime |
+| Right Y-axis | Lamp Power Output (blue, dashed) | Power increase to compensate for degradation |
+| X-axis | Cumulative runtime hours (10-hour buckets) | |
+
+A **lamp selector dropdown** targets one of the 16 lamps. Switch between lamps to compare degradation rates. Data comes from `/api/telemetry/runtime-analysis`.
+
+## Lamp Efficiency vs System UV Intensity chart
+
+A companion dual Y-axis chart:
+
+| Axis | Series | Description |
+|------|--------|-------------|
+| Left Y-axis | Lamp Efficiency % (purple, solid) | Selected lamp's efficiency |
+| Right Y-axis | System UV Intensity W/m² (cyan, dashed) | Aggregate system intensity |
+| X-axis | Runtime hours |
+
+This chart reveals an important operational insight: **system UV intensity can remain stable even as individual lamp efficiency drops**, because the LDC increases power to compensate. The gap between the two lines quantifies how hard the system is working to maintain compliance.
+
+## Source
+
+| Data | Endpoint |
+|------|---------|
+| Stage 1 telemetry | `/api/telemetry/aggregated?interval=day` |
+| Stage 1 health | `/api/health/aggregated?interval=day` |
+| Stage 2 raw streaming | `/api/telemetry/chunked` |
+| Runtime charts | `/api/telemetry/runtime-analysis` |

@@ -1,0 +1,96 @@
+---
+title: "System Architecture"
+description: "Data flow, component boundaries, and how the Next.js frontend communicates with Cloud SQL."
+---
+
+## Overview
+
+The dashboard follows a strict client → API route → database pattern. The browser never communicates directly with the database; all data access is mediated by Next.js server-side API routes running on Vercel.
+
+## Data flow
+
+```
+BWTS Controller (shipboard)
+       │
+       │  Periodic write (~3 min interval)
+       ▼
+PostgreSQL on Cloud SQL (GCP)
+       │
+       │  TCP via Cloud SQL Connector + IAM auth
+       ▼
+Next.js API Routes (Vercel serverless functions)
+       │
+       │  fetch() calls from browser
+       ▼
+React Client Components ('use client')
+       │
+       │  HTTPS
+       ▼
+Browser (operator's workstation)
+```
+
+## Next.js App Router pattern
+
+All six dashboard components are **Client Components** (`'use client'`). They fetch data from the API routes using the browser's `fetch()` API — they never import from `lib/db.ts` or query the database directly.
+
+This is enforced by Next.js: server-only modules (including the Cloud SQL connector and database credentials) are never bundled into the client JavaScript. Database credentials remain exclusively on the server.
+
+## API routes (server-side only)
+
+API routes in `app/api/` run as Vercel serverless functions. They:
+
+1. Import `query()` or `queryOne()` from `lib/db.ts`
+2. Execute parameterised SQL queries
+3. Return JSON responses via `NextResponse.json()`
+4. Set `export const dynamic = 'force-dynamic'` to disable caching and ensure fresh data on every request
+
+## Connection pooling strategy
+
+A `pg.Pool` is initialised in `lib/db.ts` and cached on a module-level variable to survive across requests within the same function instance:
+
+- **Max 5 connections** — avoids exceeding Cloud SQL connection limits
+- **30-second statement timeout per client** — prevents hung queries from blocking the pool
+- **Single retry on transient errors** — handles brief network interruptions without cascading failures
+
+On Vercel, each cold start creates a new pool. The Cloud SQL connector authenticates using a GCP service account on each new pool initialisation.
+
+## Credential handling
+
+Database credentials are stored as environment variables and **never exposed to the browser**. The GCP service account JSON is stored as a base64-encoded string in `GOOGLE_SERVICE_ACCOUNT_BASE64`. At pool initialisation, `lib/db.ts`:
+
+1. Decodes the base64 string
+2. Writes the JSON to a temporary file
+3. Passes the file path to the Cloud SQL connector
+4. Immediately deletes the temporary file
+
+This approach avoids credential files persisting on disk between requests.
+
+## Auto-refresh pattern
+
+The Overview tab fetches `/api/stats` every 30 seconds via `setInterval`. Other tabs do not auto-refresh — they load data on mount and on date-range changes only. This keeps background load low for tabs that are not actively being viewed.
+
+## Graceful shutdown
+
+`lib/db.ts` registers `SIGTERM` and `SIGINT` handlers that:
+1. Drain the connection pool (wait for in-flight queries to complete)
+2. Close the Cloud SQL connector
+
+This prevents connection leaks during Vercel function termination.
+
+## Key files
+
+| File | Role |
+|------|------|
+| `lib/db.ts` | Connection pool, query helpers, error handling |
+| `lib/telemetry-columns.ts` | Column alias mapping (DB → frontend format) |
+| `lib/types.ts` | TypeScript interfaces for all data entities |
+| `lib/constants.ts` | Thresholds and configuration constants |
+| `app/api/*/route.ts` | Server-side API route handlers |
+| `components/dashboards/*.tsx` | Client-side dashboard components |
+| `app/page.tsx` | Tab navigation and component orchestration |
+
+## See also
+
+- [Technology Stack](/internal/tech-stack) — full library and framework list
+- [Environment Variables](/internal/environment-variables) — all required configuration
+- [Local Development Guide](/internal/local-dev) — running the stack locally

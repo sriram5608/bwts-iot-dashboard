@@ -1,0 +1,80 @@
+---
+title: "UV Intensity Thresholds"
+description: "The three key UV intensity levels used for compliance checking, operational targets, and lamp efficiency tiers."
+---
+
+## The three UV intensity thresholds
+
+All three values are defined in `lib/constants.ts` under `THRESHOLDS.UV_INTENSITY`:
+
+| Threshold | Value | Source | Purpose |
+|-----------|-------|--------|---------|
+| `IMO_MIN` | **252 W/m²** | IMO G8 guidelines | Minimum for IMO D-2 compliance |
+| `USCG_MIN` | **530 W/m²** | 33 CFR Part 151 | Minimum for USCG compliance |
+| `OPTIMAL` | **650 W/m²** | System design spec | Full-rated output target |
+
+## How 252 W/m² is used
+
+The `IMO_MIN` value is the **primary compliance gate**. Any BALLAST or DEBALLAST operation where `UVR_INTENSITY < 252` represents a D-2 non-compliance event. In the dashboard:
+
+- **Compliance tab**: IMO D-2 item shows red (NON-COMPLIANT)
+- **Compliance tab treatment bar**: fills to `UVR_INTENSITY / 252` — when below 100%, compliance is at risk
+
+## How 530 W/m² is used
+
+The `USCG_MIN` is the **secondary compliance gate**, relevant for vessels operating in US waters. Between 252 and 530, the system is in a "marginal zone":
+
+- IMO D-2 compliant ✅
+- USCG non-compliant ⚠️
+
+The Compliance tab shows the USCG item as WARNING (yellow) in this range. The USCG treatment bar fills to `UVR_INTENSITY / 530`.
+
+## How 650 W/m² is used
+
+The `OPTIMAL` value represents the system's full rated output under ideal conditions. It is used as:
+
+- The denominator for efficiency calculations where intensity is expressed as a percentage of optimal
+- The reference point for the UV Health component of the health score
+
+Values above 650 W/m² are possible in cold, clear water conditions where UV transmittance is high.
+
+## Operating zones
+
+```
+0 ────── 252 ─────────── 530 ──────── 650+ W/m²
+  FAIL    │  IMO ONLY    │  BOTH OK  │  OPTIMAL
+          │              │            │
+```
+
+## Lamp efficiency thresholds
+
+Separate from UV intensity, individual lamp efficiency is tracked against these tiers, defined in `THRESHOLDS.LAMP_EFFICIENCY`:
+
+| Tier | Efficiency range | Colour | Recommended action |
+|------|-----------------|--------|-------------------|
+| GOOD | ≥ 90% | Green | No action |
+| WARNING | 70–89% | Yellow | Monitor, plan future replacement |
+| DEGRADED | 50–69% | Orange | Schedule replacement at next port |
+| CRITICAL | < 50% | Red | Urgent replacement required |
+
+## Lamp runtime thresholds
+
+Defined in `THRESHOLDS.LAMP_RUNTIME`:
+
+| Threshold | Value | Action |
+|-----------|-------|--------|
+| `WARNING` | 2,500 hours | Begin planning replacement |
+| `MAX` | 3,000 hours | End of rated lamp life |
+
+## UV intensity vs lamp efficiency: the relationship
+
+Individual lamp efficiency affects aggregate `UVR_INTENSITY`. As lamps degrade, the system cannot maintain the intensity setpoint without increasing `UVR_POWER_OUTPUT`.
+
+`POWER_COMPENSATION_PCT` quantifies this: a value of 20 means the system consumes 20% more electrical power to achieve the same UV intensity that new lamps would produce at rated power. This is visible in the Trend Analysis tab's runtime charts — the power line climbs as the efficiency line falls.
+
+## References
+
+- [IMO D-2 Regulation](/concepts/imo-d2-regulation) — regulatory context for the 252 W/m² threshold
+- [USCG Standards](/concepts/uscg-standards) — regulatory context for the 530 W/m² threshold
+- [UV Disinfection Technology](/concepts/uv-disinfection) — physics behind intensity requirements
+- [Compliance Monitoring Tab](/product/compliance-tab) — where these thresholds are applied in real time

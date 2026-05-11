@@ -1,0 +1,75 @@
+---
+title: "UV Disinfection Technology"
+description: "How UV intensity is generated, measured, and why lamp efficiency degrades over time."
+---
+
+## The physics of UV-C disinfection
+
+UV-C light (wavelengths 200–280 nm) causes **thymine-thymine dimers** to form in microbial DNA. This photochemical damage prevents cells from replicating, rendering organisms non-viable — even if they are not immediately destroyed.
+
+Disinfection efficacy is **dose-dependent**:
+
+```
+UV Dose (mJ/cm²) = Intensity (W/m²) × Exposure Time (s) × 0.1
+```
+
+At a fixed flow rate and reactor length, increasing lamp intensity directly increases the delivered dose. This is why UV intensity is the primary compliance metric.
+
+## How intensity is measured
+
+Two intensity values appear in telemetry:
+
+| Field | Description |
+|-------|-------------|
+| `UVR_INTENSITY` | Raw UV sensor reading in W/m² |
+| `UVR_INTENSITY_NORMALIZED` | Corrected for water temperature and transmittance via `WATER_QUALITY_FACTOR` |
+
+Compliance checks in the dashboard use `UVR_INTENSITY`. The normalised value is available for analysis in the Data Export tab.
+
+## Power output and compensation
+
+As lamps age, they produce less UV output per watt of electrical power consumed. The system's Lamp Drive Controller (LDC) compensates by increasing power to maintain the intensity setpoint:
+
+| Field | Description |
+|-------|-------------|
+| `UVR_POWER_OUTPUT` | Current power delivered to the lamp array (% of rated capacity) |
+| `UVR_POWER_SETPOINT` | Target power level commanded by the controller |
+| `POWER_COMPENSATION_PCT` | Extra power percentage consumed to compensate for lamp degradation |
+| `DEGRADATION_IMPACT_PCT` | UV output reduction (%) attributable to lamp aging |
+
+A `POWER_COMPENSATION_PCT` of 20 means the system is consuming 20% more electrical power than new lamps would require to achieve the same UV intensity. This is a reliable early indicator of lamp aging before efficiency drops below warning thresholds.
+
+## Lamp efficiency degradation curve
+
+UV lamps degrade non-linearly over their operating life:
+
+- **0 – ~1,500 hours**: Efficiency stays above 90%, minor power compensation needed
+- **1,500 – 2,500 hours**: Gradual degradation, efficiency enters the 70–90% warning band
+- **2,500 – 3,000 hours**: Accelerated degradation, replacement recommended before the 3,000-hour rated life
+
+The Trend Analysis tab's **Lamp Efficiency & Power vs Runtime** chart visualises this degradation curve for any selected lamp, using data grouped into 10-hour runtime buckets.
+
+## Water quality effects
+
+Water conditions affect how efficiently UV light penetrates the flow:
+
+| Field | Effect |
+|-------|--------|
+| `UVR_WATER_TEMP` | Cold water increases UV transmittance (less absorption) |
+| `WATER_QUALITY` | Turbidity descriptor |
+| `WATER_QUALITY_FACTOR` | Numeric multiplier used to compute normalised intensity |
+
+Turbid or warm water requires higher lamp output to deliver the same effective dose. The LDC controller adjusts `UVR_POWER_SETPOINT` in response.
+
+## The LDC (Lamp Drive Controller)
+
+The LDC converts AC power to the high-frequency power needed by UV lamps and controls power delivery. Its health is critical because overheating shortens lamp life.
+
+| Field | Description |
+|-------|-------------|
+| `LDC_AIR_TEMP` | Compartment air temperature (°C) |
+| `LDC_FAN_SPEED` | Cooling fan speed (RPM) |
+| `LDC_FAN_STATUS` | Fan operational state |
+| `LDC_WATER_ALARM` | Water ingress alarm flag |
+
+The `thermal_health` component of the system health score reflects LDC temperature management. See [Health Score Calculation](/methodology/health-score).

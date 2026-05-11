@@ -1,0 +1,77 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "BWTS Monitoring Dashboard",
+  "colors": {
+    "primary": "#0369A1",
+    "light": "#38BDF8",
+    "dark": "#0C4A6E"
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": ["introduction", "quickstart"]
+          },
+          {
+            "group": "Concepts",
+            "pages": [
+              "concepts/bwts-overview",
+              "concepts/uv-disinfection",
+              "concepts/imo-d2-regulation",
+              "concepts/uscg-standards"
+            ]
+          },
+          {
+            "group": "Product Tour",
+            "pages": [
+              "product/overview-tab",
+              "product/predictive-maintenance-tab",
+              "product/trend-analysis-tab",
+              "product/compliance-tab",
+              "product/comparative-analysis-tab",
+              "product/data-export-tab"
+            ]
+          },
+          {
+            "group": "Methodology",
+            "pages": [
+              "methodology/health-score",
+              "methodology/rul-algorithm",
+              "methodology/uv-thresholds",
+              "methodology/progressive-loading"
+            ]
+          },
+          {
+            "group": "Data Reference",
+            "pages": [
+              "data/schema-overview",
+              "data/telemetry-fields",
+              "data/api-reference"
+            ]
+          },
+          {
+            "group": "Internal Engineering",
+            "pages": [
+              "internal/architecture",
+              "internal/tech-stack",
+              "internal/environment-variables"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "topbarLinks": [
+    {
+      "name": "Live Dashboard",
+      "url": "https://ballast-water-treatment-system.apps.metaweave.in"
+    }
+  ],
+  "footer": {
+    "socials": {}
+  }
+}

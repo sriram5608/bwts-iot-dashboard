@@ -1,0 +1,104 @@
+---
+title: "Telemetry Fields Reference"
+description: "Complete field-by-field reference for bwts_iot_telemetry, including units, data types, and threshold values."
+---
+
+The `bwts_iot_telemetry` table contains 65+ fields. All field names below use the **frontend underscore format** as returned by the API (not the raw PostgreSQL column names). See [Schema Overview](/data/schema-overview) for the column naming convention.
+
+## System metadata
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `timestamp` | datetime | UTC timestamp of the reading |
+| `system_id` | string | BWTS system identifier |
+| `operation_type` | string | `BALLAST` or `DEBALLAST` |
+| `location` | string | Port name where the operation occurred |
+| `month` | integer | Month number (1–12) |
+
+## UV Reactor (UVR\_)
+
+| Field | Unit | Description |
+|-------|------|-------------|
+| `UVR_INTENSITY` | W/m² | Raw UV sensor reading — primary compliance metric |
+| `UVR_INTENSITY_NORMALIZED` | W/m² | Temperature and turbidity corrected intensity |
+| `UVR_POWER_OUTPUT` | % of rated | Active power delivered to the lamp array |
+| `UVR_POWER_SETPOINT` | % | Target power level commanded to the LDC |
+| `UVR_WATER_TEMP` | °C | Ballast water temperature at the reactor |
+| `UVR_LEVEL` | string | UV level descriptor (e.g., HIGH, MED, LOW) |
+
+## Lamp Drive Controller (LDC\_)
+
+| Field | Unit | Description |
+|-------|------|-------------|
+| `LDC_AIR_TEMP` | °C | Compartment air temperature |
+| `LDC_FAN_SPEED` | RPM | Cooling fan speed |
+| `LDC_FAN_STATUS` | string | Fan operational state |
+| `LDC_WATER_ALARM` | boolean | Water ingress alarm — true if alarm active |
+
+## Filter System (FLT\_)
+
+| Field | Unit | Description |
+|-------|------|-------------|
+| `FLT_DIFF_PRESSURE` | bar | Differential pressure across the filter element |
+| `FLT_MOTOR_STATUS` | string | Filter motor state |
+| `FLT_BACKFLUSH_ACTIVE` | boolean | True when automatic backflush is in progress |
+| `FLT_BACKFLUSH_COUNT` | integer | Cumulative number of backflush cycles |
+
+## Flow and Pressure (SYS\_)
+
+| Field | Unit | Description |
+|-------|------|-------------|
+| `SYS_FLOW_RATE` | m³/h | Ballast water flow rate |
+| `SYS_PRESSURE` | bar | System pressure |
+| `SYS_VALVE_POSITION` | % | Control valve opening (0 = closed, 100 = fully open) |
+| `SYS_TOTAL_BALLAST_VOL` | m³ | Cumulative ballast volume processed |
+| `SYS_TOTAL_DEBALLAST_VOL` | m³ | Cumulative deballast volume processed |
+| `SYS_EXTERNAL_FEED` | boolean | True when external water feed is active |
+
+## PLC Controller (PLC\_)
+
+| Field | Unit | Description |
+|-------|------|-------------|
+| `PLC_CPU_USAGE` | % | PLC processor utilisation |
+| `PLC_RAM_USAGE` | % | PLC memory utilisation |
+| `PLC_CPU_TEMP` | °C | PLC processor temperature |
+
+## Process State
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `PROCESS_STATE` | string | Controller state machine value |
+| `COMPLIANCE_MODE` | string | Operating compliance mode |
+| `WATER_QUALITY` | string | Water quality descriptor |
+| `WATER_QUALITY_FACTOR` | number | Numeric multiplier for intensity normalisation |
+| `CIP_HOURS_SINCE_LAST` | hours | Hours since last Clean-in-Place cycle |
+
+## Lamp Summary (aggregate across all 16 lamps)
+
+| Field | Unit | Description |
+|-------|------|-------------|
+| `AVG_LAMP_EFFICIENCY` | % | Mean efficiency of all 16 lamps |
+| `FAILED_LAMP_COUNT` | integer | Count of lamps with STATUS = FAILED |
+| `DEGRADATION_IMPACT_PCT` | % | UV output reduction attributable to lamp aging |
+| `POWER_COMPENSATION_PCT` | % | Extra power consumed to compensate for degradation |
+
+## Per-lamp fields (× 16 lamps)
+
+Each lamp `XX` (01 through 16) has four fields following the pattern `LAMP_XX_FIELD`:
+
+| Field pattern | Unit | Description |
+|--------------|------|-------------|
+| `LAMP_XX_STATUS` | string | `ACTIVE`, `STANDBY`, or `FAILED` |
+| `LAMP_XX_EFFICIENCY` | % | Current lamp efficiency (0–100) |
+| `LAMP_XX_RUNTIME` | hours | Cumulative operating hours |
+| `LAMP_XX_POWER` | W | Current power draw |
+
+Access dynamically in TypeScript:
+
+```typescript
+const lampId = 5
+const status = telemetry[`LAMP_${String(lampId).padStart(2, '0')}_STATUS`]
+const efficiency = telemetry[`LAMP_${String(lampId).padStart(2, '0')}_EFFICIENCY`]
+```
+
+This pattern is used throughout the dashboard components to iterate over all 16 lamps without repetition.

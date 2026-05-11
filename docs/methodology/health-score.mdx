@@ -1,0 +1,65 @@
+---
+title: "Health Score Calculation"
+description: "How the system's 0–100 composite health score is derived from four component sub-scores."
+---
+
+## What the health score is
+
+The system health score is a **0–100 composite metric** stored in the `bwts_iot_health_scores` table. It represents the overall condition of the BWTS at each telemetry timestamp. The score is displayed as the arc gauge on the Overview tab's top-right corner and as a trend line in the Trend Analysis tab.
+
+The score is **pre-computed by the data pipeline** — not calculated by the dashboard itself. The dashboard reads and displays the stored values.
+
+## The four component scores
+
+Each component is independently scored 0–100 and contributes to the overall score:
+
+| Component | Field | What it measures |
+|-----------|-------|-----------------|
+| UV Health | `uv_health` | How closely `UVR_INTENSITY` matches the target operating point (650 W/m²) |
+| Lamp Health | `lamp_health` | Aggregate efficiency of all 16 lamps relative to their rated output |
+| Power Efficiency | `power_efficiency` | Ratio of actual to rated power consumption across the lamp array |
+| Thermal Health | `thermal_health` | LDC temperature management — `LDC_AIR_TEMP` vs safe operating range, fan status |
+
+The Trend Analysis tab exposes `uv_health` and `lamp_health` as individual series in the health evolution chart alongside `overall_score`.
+
+## Risk level thresholds
+
+| Overall Score | Risk Level | Gauge colour | Interpretation |
+|--------------|-----------|-------------|----------------|
+| 80–100 | LOW | Green | All systems nominal |
+| 60–79 | MEDIUM | Blue | Minor degradation — monitor closely |
+| 40–59 | HIGH | Orange | Maintenance recommended soon |
+| 0–39 | CRITICAL | Red | Immediate action required |
+
+The `risk_level` field in the database stores the string value (`LOW`, `MEDIUM`, `HIGH`, `CRITICAL`) corresponding to these bands.
+
+## Where health scores appear in the dashboard
+
+| Location | What is shown |
+|----------|--------------|
+| Overview tab — top-right arc gauge | `overall_score` from the latest health record |
+| Trend Analysis — health evolution chart | `overall_score`, `uv_health`, `lamp_health` over the selected date range |
+| `/api/health` endpoint | Array of health records (latest first) |
+| `/api/health/aggregated` endpoint | Time-bucketed health scores for charting |
+
+## API response shape
+
+```json
+{
+  "timestamp": "2026-04-30T00:00:00Z",
+  "overall_score": 82,
+  "risk_level": "LOW",
+  "components": {
+    "uv_health": 88,
+    "lamp_health": 79,
+    "power_efficiency": 84,
+    "thermal_health": 91
+  }
+}
+```
+
+## References
+
+- [UV Thresholds](/methodology/uv-thresholds) — how UV intensity maps to compliance and health
+- [RUL Algorithm](/methodology/rul-algorithm) — how lamp predictions relate to lamp\_health
+- `lib/constants.ts` — `THRESHOLDS.HEALTH_SCORE` contains the 80/60/40 breakpoints

@@ -1,0 +1,83 @@
+---
+title: "Database Schema Overview"
+description: "PostgreSQL tables that back the BWTS dashboard, with table names, row counts, and relationships."
+---
+
+## Database technology
+
+The dashboard is backed by a **PostgreSQL** database hosted on Google Cloud SQL. The Next.js API routes connect to it via the `@google-cloud/cloud-sql-connector` library using a GCP service account — no direct database access from the browser.
+
+See [System Architecture](/internal/architecture) for the full connection flow.
+
+## Column naming convention
+
+PostgreSQL columns are stored in a compressed format without separators (e.g., `UVRINTENSITY`, `LAMP01STATUS`). The `buildTelemetrySelect()` function in `lib/telemetry-columns.ts` aliases every column to the underscore format used by the TypeScript interfaces and the frontend:
+
+| Database column | Frontend field |
+|-----------------|---------------|
+| `UVRINTENSITY` | `UVR_INTENSITY` |
+| `LAMP01STATUS` | `LAMP_01_STATUS` |
+| `LAMP16EFFICIENCY` | `LAMP_16_EFFICIENCY` |
+| `SYSFLOWRATE` | `SYS_FLOW_RATE` |
+| `AVGLAMPEFFICIENCY` | `AVG_LAMP_EFFICIENCY` |
+
+Always use the **frontend field names** (underscore format) in TypeScript, API query parameters, and export column selectors.
+
+## The five tables
+
+<CardGroup cols={2}>
+  <Card title="bwts_iot_telemetry" icon="database">
+    3-minute sensor readings from the BWTS controller. Primary data source for all charts and compliance checks. ~17,500 rows per year.
+  </Card>
+  <Card title="bwts_iot_health_scores" icon="heart-pulse">
+    Pre-computed composite health scores (0–100) with four component sub-scores. One record per telemetry timestamp.
+  </Card>
+  <Card title="bwts_iot_events" icon="bell">
+    Process lifecycle and alarm events: PROCESS_START, PROCESS_STOP, ALARM_TRIGGERED. Used by the Overview and Compliance tabs.
+  </Card>
+  <Card title="bwts_iot_predictions" icon="chart-mixed">
+    ML-generated remaining useful life and failure probability predictions for each UV lamp. Updated by the prediction pipeline.
+  </Card>
+</CardGroup>
+
+A fifth table, `bwts_iot_voyage_schedule`, stores voyage planning data and is not currently used by the dashboard UI.
+
+## Primary key and timestamp
+
+All five tables share the same structure:
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | integer | Auto-generated primary key |
+| `timestamp` | timestamptz | UTC timestamp of the record |
+
+All API queries order by `timestamp DESC` and apply a `LIMIT` to cap result sets. For best query performance, ensure an index exists on `timestamp` in each table.
+
+## Connection pooling
+
+The API layer uses a `pg.Pool` configured as follows:
+
+| Setting | Value | Purpose |
+|---------|-------|---------|
+| Max connections | 5 | Avoid exhausting Cloud SQL connection limits |
+| Min idle connections | 1 | Keep one warm connection for fast first requests |
+| Idle timeout | 30 seconds | Release unused connections promptly |
+| Connection timeout | 10 seconds | Fail fast if the database is unreachable |
+| Statement timeout | 30 seconds | Prevent long-running queries from blocking the pool |
+
+The pool is cached on a module-level singleton to survive hot reloads in development. In production (Vercel serverless), a new pool is initialised per cold start.
+
+## Error handling
+
+The `query()` and `queryOne()` helpers in `lib/db.ts` automatically retry **once** on transient errors including:
+
+- `ECONNRESET`, `ECONNREFUSED`, `ETIMEDOUT`
+- PostgreSQL error codes: `57P01` (admin shutdown), `08006` (connection failure), `08001`, `08004`
+
+Only a single retry is attempted to prevent cascading failures under load.
+
+## References
+
+- [Telemetry Fields Reference](/data/telemetry-fields) — full field list for `bwts_iot_telemetry`
+- [API Reference](/data/api-reference) — how to query these tables via the dashboard's REST endpoints
+- [System Architecture](/internal/architecture) — connection flow from browser to database

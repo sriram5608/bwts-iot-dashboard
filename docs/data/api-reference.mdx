@@ -1,0 +1,252 @@
+---
+title: "API Reference"
+description: "All ten REST endpoints, their query parameters, and example response shapes."
+---
+
+## Base URL
+
+The dashboard is hosted on Vercel. All API endpoints are available at:
+
+```
+https://ballast-water-treatment-system.apps.metaweave.in
+```
+
+All endpoints are `GET`-only and return `application/json`. All responses include `Cache-Control: no-store` — data is always fresh from the database.
+
+---
+
+## GET /api/stats
+
+Combined overview data — runs four parallel database queries and returns a single response object. Used by the Overview tab.
+
+**Parameters:** None
+
+**Response:**
+```json
+{
+  "latestTelemetry": { ...TelemetryReading },
+  "latestHealth": {
+    "timestamp": "2026-04-30T00:00:00Z",
+    "overall_score": 82,
+    "risk_level": "LOW",
+    "components": {
+      "uv_health": 88,
+      "lamp_health": 79,
+      "power_efficiency": 84,
+      "thermal_health": 91
+    }
+  },
+  "recentEvents": [ ...Event[] ],
+  "monthlyAvg": {
+    "avgUVIntensity": 645.2,
+    "avgPowerOutput": 87.4,
+    "avgFlowRate": 95.3
+  }
+}
+```
+
+---
+
+## GET /api/telemetry/latest
+
+Most recent telemetry reading. Used by the Compliance tab and Trend Analysis date initialisation.
+
+**Parameters:** None
+
+**Response:** Single `TelemetryReading` object with all 65+ fields. See [Telemetry Fields Reference](/data/telemetry-fields).
+
+---
+
+## GET /api/telemetry/history
+
+Historical telemetry over a time window.
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `hours` | integer | 24 | Number of hours back from the latest record |
+
+**Response:** Array of `TelemetryReading` objects ordered by timestamp ascending.
+
+---
+
+## GET /api/telemetry/aggregated
+
+Time-bucketed telemetry. Used as Stage 1 data for Trend Analysis, Comparative Analysis, and Data Export.
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `interval` | `day` \| `hour` | `day` | Aggregation bucket size |
+| `startDate` | ISO string | — | Start of date range (takes precedence over `hours`) |
+| `endDate` | ISO string | — | End of date range |
+| `hours` | integer | 720 | Fallback window if `startDate`/`endDate` not provided |
+
+**Response:** Array of aggregated rows. Each row contains:
+- `timestamp` — bucket start
+- `UVR_INTENSITY`, `UVR_POWER_OUTPUT`, `UVR_WATER_TEMP`, `SYS_FLOW_RATE`, `SYS_PRESSURE`, `AVG_LAMP_EFFICIENCY`, `FAILED_LAMP_COUNT`
+- Per-lamp data for all 16 lamps: `LAMP_XX_EFFICIENCY`, `LAMP_XX_POWER`, `LAMP_XX_RUNTIME`
+- `recordCount` — number of raw records aggregated into this bucket
+
+---
+
+## GET /api/telemetry/chunked
+
+Paginated raw telemetry records. Used as Stage 2 streaming data.
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `startDate` | ISO string | required | Start of date range |
+| `endDate` | ISO string | required | End of date range |
+| `offset` | integer | 0 | Record offset for pagination |
+| `limit` | integer | 500 | Records per page |
+
+**Response:**
+```json
+{
+  "data": [ ...TelemetryReading[] ],
+  "pagination": {
+    "offset": 0,
+    "limit": 500,
+    "total": 17531,
+    "hasMore": true
+  }
+}
+```
+
+---
+
+## GET /api/telemetry/runtime-analysis
+
+Telemetry records organised for runtime-based lamp degradation analysis. Used by the Trend Analysis runtime charts.
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `startDate` | ISO string | — | Optional start filter |
+| `endDate` | ISO string | — | Optional end filter |
+
+**Response:** Array of up to 10,000 records containing: `timestamp`, `UVR_INTENSITY`, `UVR_POWER_OUTPUT`, and `LAMP_XX_RUNTIME/EFFICIENCY/POWER` for all 16 lamps.
+
+---
+
+## GET /api/health
+
+Latest health score records.
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `limit` | integer | 100 | Maximum number of records to return |
+
+**Response:** Array of health records ordered by timestamp descending:
+```json
+[{
+  "timestamp": "2026-04-30T00:00:00Z",
+  "overall_score": 82,
+  "risk_level": "LOW",
+  "month": 4,
+  "componentsUvHealth": 88,
+  "componentsPowerEfficiency": 84,
+  "componentsLampHealth": 79,
+  "componentsThermalHealth": 91
+}]
+```
+
+Note: component fields are flat (not nested) in this endpoint's response. Use `/api/health/aggregated` for nested component structure.
+
+---
+
+## GET /api/health/aggregated
+
+Time-bucketed health scores. Used by the Trend Analysis health evolution chart.
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `interval` | `day` \| `hour` | `day` | Aggregation bucket size |
+| `startDate` | ISO string | — | Start of date range |
+| `endDate` | ISO string | — | End of date range |
+| `limit` | integer | — | Fallback if dates not provided |
+
+**Response:**
+```json
+[{
+  "timestamp": "2026-04-30T00:00:00Z",
+  "overall_score": 82,
+  "components": {
+    "uv_health": 88,
+    "lamp_health": 79,
+    "power_efficiency": 84,
+    "thermal_health": 91
+  },
+  "recordCount": 480
+}]
+```
+
+---
+
+## GET /api/events
+
+Process lifecycle and alarm events.
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `limit` | integer | 100 | Maximum number of records |
+| `type` | string | — | Filter by event type: `PROCESS_START`, `PROCESS_STOP`, or `ALARM_TRIGGERED` |
+
+**Response:**
+```json
+[{
+  "timestamp": "2026-04-30T08:15:00Z",
+  "event_type": "PROCESS_START",
+  "description": "Ballast operation started at Port Klang",
+  "data": {
+    "operation_type": "BALLAST",
+    "location": "Port Klang",
+    "target_flow": 100.5
+  }
+}]
+```
+
+---
+
+## GET /api/predictions
+
+ML predictions for all UV lamp components.
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `limit` | integer | 100 | Maximum number of prediction records |
+
+**Response:**
+```json
+[{
+  "timestamp": "2026-04-30T00:00:00Z",
+  "component_id": "LAMP_01",
+  "component_type": "UV_LAMP",
+  "predictions": {
+    "remaining_useful_life_hours": 450,
+    "failure_probability": 0.62,
+    "efficiency_percent": 81.3
+  },
+  "current_state": {
+    "runtime_hours": 2150,
+    "efficiency_percent": 81.3,
+    "status": "OPERATIONAL"
+  }
+}]
+```
+
+See [RUL Algorithm](/methodology/rul-algorithm) for how the Predictive Maintenance tab deduplicates and ranks these records.

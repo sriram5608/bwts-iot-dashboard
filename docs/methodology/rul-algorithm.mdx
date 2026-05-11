@@ -1,0 +1,88 @@
+---
+title: "Remaining Useful Life (RUL) Prediction"
+description: "How per-lamp failure probability and RUL hours are predicted and surfaced in the dashboard."
+---
+
+## What RUL is
+
+**Remaining Useful Life** is the predicted number of operating hours before a UV lamp is expected to fail or require replacement. It is stored in the `bwts_iot_predictions` table and surfaced in the Predictive Maintenance tab.
+
+A lamp with an RUL of 0 should be treated as imminently failed. A lamp with an RUL of 2,800 hours has most of its rated 3,000-hour life still ahead of it.
+
+## The prediction record schema
+
+Each prediction record contains:
+
+```json
+{
+  "timestamp": "2026-04-30T00:00:00Z",
+  "component_id": "LAMP_01",
+  "component_type": "UV_LAMP",
+  "predictions": {
+    "remaining_useful_life_hours": 450,
+    "failure_probability": 0.62,
+    "efficiency_percent": 81.3
+  },
+  "current_state": {
+    "runtime_hours": 2150,
+    "efficiency_percent": 81.3,
+    "status": "OPERATIONAL"
+  }
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `component_id` | Lamp identifier, e.g. `LAMP_01` through `LAMP_16` |
+| `component_type` | Always `UV_LAMP` for lamp predictions |
+| `predictions.remaining_useful_life_hours` | Predicted hours of useful life remaining |
+| `predictions.failure_probability` | Float 0.0–1.0; probability of failure within the prediction horizon |
+| `predictions.efficiency_percent` | Predicted efficiency from the model |
+| `current_state.runtime_hours` | Cumulative hours the lamp has operated |
+| `current_state.status` | `OPERATIONAL`, `DEGRADED`, or `FAILED` |
+
+## How predictions are generated
+
+Predictions are pre-computed by a separate ML pipeline — **not by the dashboard**. The pipeline analyses each lamp's runtime history and efficiency degradation curve and writes prediction records to the database. The dashboard reads results via `/api/predictions`.
+
+## Dashboard deduplication logic
+
+The `/api/predictions` endpoint may return multiple prediction records per lamp (one per prediction run). The Predictive Maintenance tab applies this deduplication:
+
+1. Fetch up to 100 prediction records
+2. Filter to `component_type === 'UV_LAMP'`
+3. For each `component_id`, keep only the record with the most recent `timestamp`
+4. Sort remaining records by `failure_probability` descending (most at-risk first)
+
+This ensures exactly one row per lamp regardless of how many historical prediction records exist.
+
+## Failure probability thresholds
+
+| Failure probability | Risk level | Row colour | Action |
+|--------------------|-----------|-----------|--------|
+| ≥ 70% | Critical | Red | Plan replacement at next port call |
+| 50–69% | High | Orange | Elevated risk — schedule replacement within 2 port calls |
+| 30–49% | Moderate | Yellow | Monitor — include in next routine inspection |
+| < 30% | Good | Green | No action needed |
+
+## Lamp lifetime reference
+
+| Threshold | Value | Source |
+|-----------|-------|--------|
+| Rated lifetime | 3,000 hours | `THRESHOLDS.LAMP_RUNTIME.MAX` |
+| Maintenance warning | 2,500 hours | `THRESHOLDS.LAMP_RUNTIME.WARNING` |
+
+When `current_state.runtime_hours` approaches 2,500h, failure probability rises sharply on the degradation curve. Lamps beyond 2,500h with failure\_probability ≥ 0.5 should be treated as high priority for replacement.
+
+## Cost implication
+
+The Predictive Maintenance tab's cost comparison ($18,500 reactive vs $5,000 predictive annually) is based on the following logic:
+
+- **Reactive**: Emergency lamp replacements require expedited parts, unplanned dry-dock time, and elevated labour costs
+- **Predictive**: Scheduling replacements based on RUL during planned port calls allows bulk procurement and standard crew schedules
+
+## References
+
+- [Health Score Calculation](/methodology/health-score) — how lamp health feeds into the composite score
+- [Predictive Maintenance Tab](/product/predictive-maintenance-tab) — where this data is displayed
+- `/api/predictions` — the endpoint serving this data

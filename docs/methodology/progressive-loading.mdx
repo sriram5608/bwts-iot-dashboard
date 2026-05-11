@@ -1,0 +1,86 @@
+---
+title: "Progressive Data Loading"
+description: "The two-stage loading architecture that delivers instant renders for large historical datasets."
+---
+
+## The problem it solves
+
+The full telemetry dataset contains approximately 17,500 records covering one year of 3-minute interval data. Fetching all records at page load results in a 2–5 MB payload and a 2–5 second wait before the chart renders. During that time, the user sees a blank screen.
+
+Progressive loading reduces the time to first meaningful render to **under 500 ms** while still delivering the full dataset.
+
+## Stage 1: Instant aggregated render
+
+On tab load, the dashboard fetches **daily aggregated data** — one data point per day rather than one per 3-minute interval:
+
+```
+GET /api/telemetry/aggregated?interval=day&startDate=...&endDate=...
+```
+
+This returns 30–365 rows totalling approximately 50 KB. Charts render immediately with this coarse data. The `loadingStage` state transitions from `'initial'` to `'streaming'`.
+
+## Stage 2: Background streaming
+
+After Stage 1, a second `useEffect` fires (triggered by `loadingStage === 'streaming'`) and begins fetching raw records in chunks:
+
+```
+GET /api/telemetry/chunked?startDate=...&endDate=...&offset=0&limit=500
+GET /api/telemetry/chunked?startDate=...&endDate=...&offset=500&limit=500
+...
+```
+
+For each chunk:
+1. New raw records are merged into state alongside the aggregated data
+2. Charts re-render progressively, replacing aggregated points with raw points for that date range
+3. A progress badge in the bottom-right corner shows completion percentage
+4. The UI remains fully interactive throughout — the user can change date ranges, select lamps, or apply filters while streaming continues
+
+A 100 ms delay between chunks (`LOADING_CONFIG.STREAM_DELAY`) prevents the browser from being overwhelmed.
+
+## When streaming is skipped
+
+If the total record count exceeds 50,000, Stage 2 exits immediately and sets `loadingStage = 'complete'`. This prevents browser memory exhaustion on very large date ranges.
+
+## Chart downsampling
+
+Even after full streaming, charts are limited to **300 data points** (`LOADING_CONFIG.MAX_CHART_POINTS`). If more points are loaded, the chart step-samples — takes every Nth record — to stay within this limit. This prevents rendering lag without visibly affecting chart shape for trend analysis.
+
+## Performance results
+
+| Metric | Without progressive loading | With progressive loading |
+|--------|---------------------------|------------------------|
+| Initial load time | 2–5 seconds | < 500 ms |
+| Initial payload | 2–5 MB | ~ 50 KB |
+| Time to interaction | 2–5 seconds | Instant |
+| Full dataset accessible | Truncated | ~ 17,500 records |
+
+## The loading state machine
+
+Three states govern the loading lifecycle, defined as the `LoadingStage` type in `lib/types.ts`:
+
+| State | Meaning |
+|-------|---------|
+| `'initial'` | No data yet — charts show skeleton/placeholder |
+| `'streaming'` | Aggregated data loaded, raw chunks being fetched |
+| `'complete'` | All data loaded (or streaming limit hit) |
+
+## Which tabs use progressive loading
+
+| Tab | Progressive loading |
+|-----|-------------------|
+| Trend Analysis | Yes — both telemetry and health |
+| Comparative Analysis | Yes — telemetry only |
+| Data Export | Yes — telemetry only (full year) |
+| Overview | No — single latest snapshot |
+| Predictive Maintenance | No — small predictions dataset |
+| Compliance Monitoring | No — single latest snapshot |
+
+## Configuration constants
+
+All tuneable values live in `lib/constants.ts` under `LOADING_CONFIG`:
+
+| Constant | Value | Purpose |
+|----------|-------|---------|
+| `CHUNK_SIZE` | 500 | Records per streaming chunk |
+| `STREAM_DELAY` | 100 ms | Pause between chunk fetches |
+| `MAX_CHART_POINTS` | 300 | Maximum points rendered per chart series |
