@@ -541,6 +541,50 @@ lsof -ti:3000 | xargs kill -9
 
 ---
 
+## Deployment & Git Workflow
+
+### MANDATORY: Before Every Commit/Push
+
+**Always run a build check first. Never push code that fails to build.**
+
+```bash
+npm run build
+```
+
+- If build has errors → fix them before proceeding
+- If build passes → commit and push to both repos
+
+### GitHub Remotes
+
+This repo has three remotes. Always push to `sriram5608` and `metaweavehq` on every change:
+
+```bash
+git push sriram5608 main
+git push metaweavehq main
+```
+
+> Note: `origin` (sriram-metaweave) requires separate credentials. Push there when the account is available.
+
+### Vercel Auto-Deploy
+
+- **Connected repo:** `sriram-metaweave/bwts-iot-dashboard` → pushes to that repo auto-deploy to Vercel
+- **metaweavehq** and **sriram5608** do NOT auto-trigger Vercel — use `vercel deploy --prod --scope lifeosai` after pushing to those
+- **Production URL (share this):** `https://bwtsfinalwithpostgredb.vercel.app`
+- **Vercel team:** `lifeosai`
+
+### Summary: Full Release Checklist
+
+```bash
+npm run build                          # 1. Must pass — no errors
+git add <files>
+git commit -m "..."                    # 2. Commit
+git push sriram5608 main               # 3. Push to sriram5608
+git push metaweavehq main              # 4. Push to metaweavehq
+vercel deploy --prod --scope lifeosai  # 5. Deploy to Vercel (if not auto-triggered)
+```
+
+---
+
 ## Related Documentation
 
 For detailed implementation plans and reports, refer to:
