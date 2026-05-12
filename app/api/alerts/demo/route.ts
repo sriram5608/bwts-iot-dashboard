@@ -18,14 +18,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'Missing type or severity' }, { status: 400 })
   }
 
-  // DB-backed cooldown — works across serverless invocations
   const { query: dbQuery, queryOne: dbQueryOne } = await import('@/lib/db')
-  const row = await dbQueryOne<{ last_sent: Date }>(
+
+  // DB-backed cooldown — works across serverless invocations
+  const cooldownRow = await dbQueryOne<{ last_sent: Date }>(
     `SELECT MAX(timestamp) AS last_sent FROM bwts_iot_events
      WHERE "eventType" = 'DEMO_ALERT_SENT' AND "dataOperationType" = $1`,
     [body.type]
   )
-  if (row?.last_sent && Date.now() - new Date(row.last_sent).getTime() < COOLDOWN_MS) {
+  if (cooldownRow?.last_sent && Date.now() - new Date(cooldownRow.last_sent).getTime() < COOLDOWN_MS) {
     return NextResponse.json({ ok: true, skipped: true, reason: 'cooldown' })
   }
 
@@ -34,8 +35,28 @@ export async function POST(req: NextRequest) {
   const deviation = body.threshold > 0
     ? ((body.currentValue - body.threshold) / body.threshold * 100).toFixed(1)
     : '—'
+  const deviationNum = body.threshold > 0
+    ? (body.currentValue - body.threshold) / body.threshold * 100
+    : null
 
-  const html = `<!DOCTYPE html>
+  try {
+    // ── 1. Insert DB record FIRST to get instanceId for the email ──
+    // Each firing creates a new row with a new BIGSERIAL id — completely
+    // independent of previous firings of the same alert type.
+    const instanceRow = await dbQueryOne<{ id: number }>(
+      `INSERT INTO bwts_alert_instances
+         (alert_type, severity, parameter, current_value, threshold_value, unit, deviation_pct, source, month)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'DEMO', EXTRACT(MONTH FROM NOW())::int)
+       RETURNING id`,
+      [body.type, body.severity, body.parameter,
+       body.currentValue, body.threshold, body.unit, deviationNum]
+    )
+    const instanceId = instanceRow?.id ?? null
+
+    // ── 2. Build email with instanceId in subject + footer ──
+    // Agent reads "[BWTS-42]" from subject → calls GET /api/alert-instances/42
+    // for structured data. No fragile text parsing needed.
+    const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"></head>
 <body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
   <div style="max-width:560px;margin:32px auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);">
@@ -67,47 +88,33 @@ export async function POST(req: NextRequest) {
         </tr>
       </table>
     </div>
-    <div style="padding:0 28px 20px;color:#374151;font-size:13px;line-height:1.6;background:#fffbeb;margin:0 28px 24px;border-radius:8px;border:1px solid #fde68a;padding:14px;">
+    <div style="padding:14px;color:#374151;font-size:13px;line-height:1.6;background:#fffbeb;margin:0 28px 24px;border-radius:8px;border:1px solid #fde68a;">
       <strong style="color:#92400e;">Recommended Action:</strong><br>${body.recommendedAction}
     </div>
     <div style="padding:16px 28px;background:#f9fafb;border-top:1px solid #f3f4f6;">
       <div style="color:#9ca3af;font-size:11px;">Triggered at ${new Date().toISOString()}</div>
       <div style="color:#9ca3af;font-size:11px;margin-top:2px;">BWTS Monitoring Dashboard — live demo alert</div>
+      ${instanceId ? `<div style="color:#9ca3af;font-size:11px;margin-top:4px;font-family:monospace;">Alert-Instance-ID: ${instanceId}</div>` : ''}
     </div>
   </div>
 </body></html>`
 
-  const deviationNum = body.threshold > 0
-    ? (body.currentValue - body.threshold) / body.threshold * 100
-    : null
-
-  try {
+    // ── 3. Send email — subject includes [BWTS-{id}] for agent lookup ──
     await sendAlertEmail({
-      subject: `Demo Alert — ${body.parameter}`,
+      subject: `[BWTS-${instanceId ?? '?'}] Demo Alert — ${body.parameter}`,
       severity: body.severity === 'INFO' ? 'INFO' : body.severity,
       body: '',
       customHtml: html,
     })
 
-    // Log email send event
+    // ── 4. Log event ──
     await dbQuery(
       `INSERT INTO bwts_iot_events (timestamp, "eventType", description, month, "dataOperationType")
        VALUES (NOW(), 'DEMO_ALERT_SENT', $1, EXTRACT(MONTH FROM NOW())::int, $2)`,
-      [`Demo alert sent: ${body.parameter}`, body.type]
+      [`Demo alert sent: ${body.parameter} [instance ${instanceId}]`, body.type]
     )
 
-    // Create alert instance — persists acknowledge/resolve state across refreshes
-    // and gives the agent SDK a queryable record to check before starting diagnosis
-    const instanceRow = await dbQueryOne<{ id: number }>(
-      `INSERT INTO bwts_alert_instances
-         (alert_type, severity, parameter, current_value, threshold_value, unit, deviation_pct, source, month)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'DEMO', EXTRACT(MONTH FROM NOW())::int)
-       RETURNING id`,
-      [body.type, body.severity, body.parameter,
-       body.currentValue, body.threshold, body.unit, deviationNum]
-    )
-
-    return NextResponse.json({ ok: true, sent: true, instanceId: instanceRow?.id ?? null })
+    return NextResponse.json({ ok: true, sent: true, instanceId })
   } catch (e) {
     console.error('Demo alert email failed:', e)
     return NextResponse.json({ ok: false, error: String(e) }, { status: 500 })

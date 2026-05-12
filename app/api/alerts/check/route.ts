@@ -167,7 +167,24 @@ export async function GET() {
   const warningCount = alerts.filter(a => a.severity === 'WARNING').length
   const overallSeverity: 'CRITICAL' | 'WARNING' = criticalCount > 0 ? 'CRITICAL' : 'WARNING'
 
-  const rows = alerts.map(a => {
+  // ── Insert DB instances FIRST to get IDs for the email ──
+  const instanceIds: number[] = []
+  for (const alert of alerts) {
+    const row = await queryOne<{ id: number }>(
+      `INSERT INTO bwts_alert_instances
+         (alert_type, severity, parameter, current_value, threshold_value, source, month)
+       VALUES ($1, $2, $3, $4, $5, 'AUTO', EXTRACT(MONTH FROM NOW())::int)
+       RETURNING id`,
+      [alert.category.toUpperCase().replace(/[^A-Z0-9]/g, '_'),
+       alert.severity, alert.category,
+       parseFloat(alert.value), parseFloat(alert.threshold)]
+    )
+    if (row?.id) instanceIds.push(row.id)
+  }
+
+  // Build table rows — each includes its instance ID so agent can map exactly
+  const alertsWithIds = alerts.map((a, i) => ({ ...a, instanceId: instanceIds[i] ?? null }))
+  const rows = alertsWithIds.map(a => {
     const color = a.severity === 'CRITICAL' ? '#dc2626' : '#d97706'
     const bg = a.severity === 'CRITICAL' ? '#fef2f2' : '#fffbeb'
     return `
@@ -179,11 +196,14 @@ export async function GET() {
         <td style="padding:10px 14px;border-bottom:1px solid #f3f4f6;color:#6b7280;font-size:13px;">${a.description}</td>
         <td style="padding:10px 14px;border-bottom:1px solid #f3f4f6;color:${color};font-weight:700;font-size:13px;white-space:nowrap;">${a.value}</td>
         <td style="padding:10px 14px;border-bottom:1px solid #f3f4f6;color:#9ca3af;font-size:12px;white-space:nowrap;">${a.threshold}</td>
+        <td style="padding:10px 14px;border-bottom:1px solid #f3f4f6;color:#cbd5e1;font-size:11px;font-family:monospace;white-space:nowrap;">${a.instanceId ? `BWTS-${a.instanceId}` : ''}</td>
       </tr>`
   }).join('')
 
   const headerColor = overallSeverity === 'CRITICAL' ? '#dc2626' : '#d97706'
-  const subject = `${criticalCount} critical, ${warningCount} warning — BWTS system requires attention`
+  // Subject includes all instance IDs — agent parses "[BWTS-43,44]" to look up each
+  const idList = instanceIds.map(id => `BWTS-${id}`).join(', ')
+  const subject = `[${idList}] ${criticalCount} critical, ${warningCount} warning — BWTS alert digest`
 
   const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"></head>
@@ -208,6 +228,7 @@ export async function GET() {
             <th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;border-bottom:1px solid #e5e7eb;">Issue</th>
             <th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;border-bottom:1px solid #e5e7eb;">Current</th>
             <th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;border-bottom:1px solid #e5e7eb;">Limit</th>
+            <th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;border-bottom:1px solid #e5e7eb;">ID</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
@@ -216,6 +237,7 @@ export async function GET() {
     <div style="padding:16px 28px;background:#f9fafb;border-top:1px solid #f3f4f6;">
       <div style="color:#9ca3af;font-size:11px;">Generated at ${new Date().toISOString()}</div>
       <div style="color:#9ca3af;font-size:11px;margin-top:2px;">BWTS Monitoring Dashboard — automated digest · next digest in 1 hour</div>
+      <div style="color:#9ca3af;font-size:11px;margin-top:4px;font-family:monospace;">Alert-Instance-IDs: ${instanceIds.join(', ')}</div>
     </div>
   </div>
 </body></html>`
@@ -223,18 +245,6 @@ export async function GET() {
   try {
     await sendAlertEmail({ subject, severity: overallSeverity, body: '', customHtml: html })
     await markDigestSent()
-
-    // Insert alert instances for agent SDK deduplication
-    for (const alert of alerts) {
-      await query(
-        `INSERT INTO bwts_alert_instances
-           (alert_type, severity, parameter, current_value, threshold_value, source, month)
-         VALUES ($1, $2, $3, $4, $5, 'AUTO', EXTRACT(MONTH FROM NOW())::int)`,
-        [alert.category.toUpperCase().replace(/[^A-Z0-9]/g, '_'),
-         alert.severity, alert.category,
-         parseFloat(alert.value), parseFloat(alert.threshold)]
-      )
-    }
   } catch (e) {
     return NextResponse.json({ ok: false, error: String(e) }, { status: 500 })
   }
