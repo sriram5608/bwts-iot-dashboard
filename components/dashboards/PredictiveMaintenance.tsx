@@ -100,12 +100,14 @@ export default function PredictiveMaintenance() {
         <div>
           <p className="text-slate-400 text-[10px] uppercase tracking-wider mb-1">{t('nextMaintenance')}</p>
           <div className="flex items-center gap-2">
-            <Calendar className={`w-5 h-5 ${hasOverdueTasks ? 'text-red-500' : 'text-purple-500'}`} />
-            <p className={`text-3xl font-light ${hasOverdueTasks ? 'text-red-500' : 'text-purple-600'}`}>
-              {hasOverdueTasks ? '!' : (nextMaintenanceDays ?? '--')}
+            <Calendar className={`w-5 h-5 ${hasOverdueTasks ? 'text-orange-500' : 'text-purple-500'}`} />
+            <p className={`text-3xl font-light ${hasOverdueTasks ? 'text-orange-500' : 'text-purple-600'}`}>
+              {nextMaintenanceDays ?? '--'}
             </p>
           </div>
-          <p className="text-slate-400 text-xs">{hasOverdueTasks ? 'overdue tasks' : tCommon('days')}</p>
+          <p className="text-slate-400 text-xs">
+            {hasOverdueTasks ? 'days · tasks overdue' : tCommon('days')}
+          </p>
         </div>
         <div>
           <p className="text-slate-400 text-[10px] uppercase tracking-wider mb-1">{t('atRiskComponents')}</p>
