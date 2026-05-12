@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
   const { query: dbQuery, queryOne: dbQueryOne } = await import('@/lib/db')
   const row = await dbQueryOne<{ last_sent: Date }>(
     `SELECT MAX(timestamp) AS last_sent FROM bwts_iot_events
-     WHERE event_type = 'DEMO_ALERT_SENT' AND data->>'alertType' = $1`,
+     WHERE "eventType" = 'DEMO_ALERT_SENT' AND "dataOperationType" = $1`,
     [body.type]
   )
   if (row?.last_sent && Date.now() - new Date(row.last_sent).getTime() < COOLDOWN_MS) {
@@ -85,9 +85,9 @@ export async function POST(req: NextRequest) {
       customHtml: html,
     })
     await dbQuery(
-      `INSERT INTO bwts_iot_events (timestamp, event_type, description, month, data)
+      `INSERT INTO bwts_iot_events (timestamp, "eventType", description, month, "dataOperationType")
        VALUES (NOW(), 'DEMO_ALERT_SENT', $1, EXTRACT(MONTH FROM NOW())::int, $2)`,
-      [`Demo alert sent: ${body.parameter}`, JSON.stringify({ alertType: body.type })]
+      [`Demo alert sent: ${body.parameter}`, body.type]
     )
     return NextResponse.json({ ok: true, sent: true })
   } catch (e) {

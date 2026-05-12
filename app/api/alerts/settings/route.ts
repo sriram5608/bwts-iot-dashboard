@@ -3,13 +3,13 @@ import { query, queryOne } from '@/lib/db'
 
 // Returns current email alert state by looking at the most recent status event
 async function getAlertState(): Promise<'active' | 'paused'> {
-  const row = await queryOne<{ event_type: string }>(
-    `SELECT event_type FROM bwts_iot_events
-     WHERE event_type IN ('ALERT_EMAIL_PAUSED', 'ALERT_EMAIL_RESUMED')
+  const row = await queryOne<{ eventType: string }>(
+    `SELECT "eventType" FROM bwts_iot_events
+     WHERE "eventType" IN ('ALERT_EMAIL_PAUSED', 'ALERT_EMAIL_RESUMED')
      ORDER BY timestamp DESC LIMIT 1`
   )
   if (!row) return 'active' // default — active if no record
-  return row.event_type === 'ALERT_EMAIL_PAUSED' ? 'paused' : 'active'
+  return row.eventType === 'ALERT_EMAIL_PAUSED' ? 'paused' : 'active'
 }
 
 export async function GET() {
@@ -23,8 +23,8 @@ export async function POST() {
   const eventType = next === 'paused' ? 'ALERT_EMAIL_PAUSED' : 'ALERT_EMAIL_RESUMED'
 
   await query(
-    `INSERT INTO bwts_iot_events (timestamp, event_type, description, month, data)
-     VALUES (NOW(), $1, $2, EXTRACT(MONTH FROM NOW())::int, NULL)`,
+    `INSERT INTO bwts_iot_events (timestamp, "eventType", description, month)
+     VALUES (NOW(), $1, $2, EXTRACT(MONTH FROM NOW())::int)`,
     [eventType, `Email alerts ${next} by user`]
   )
 

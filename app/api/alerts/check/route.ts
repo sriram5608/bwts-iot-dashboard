@@ -6,19 +6,19 @@ import { THRESHOLDS } from '@/lib/constants'
 const COOLDOWN_MS = 60 * 60 * 1000 // 1 hour
 
 async function isAlertsPaused(): Promise<boolean> {
-  const row = await queryOne<{ event_type: string }>(
-    `SELECT event_type FROM bwts_iot_events
-     WHERE event_type IN ('ALERT_EMAIL_PAUSED', 'ALERT_EMAIL_RESUMED')
+  const row = await queryOne<{ eventType: string }>(
+    `SELECT "eventType" FROM bwts_iot_events
+     WHERE "eventType" IN ('ALERT_EMAIL_PAUSED', 'ALERT_EMAIL_RESUMED')
      ORDER BY timestamp DESC LIMIT 1`
   )
-  return row?.event_type === 'ALERT_EMAIL_PAUSED'
+  return row?.eventType === 'ALERT_EMAIL_PAUSED'
 }
 
 // PostgreSQL-backed cooldown — survives serverless cold starts
 async function isCoolingDown(): Promise<boolean> {
   const row = await queryOne<{ last_sent: Date }>(
     `SELECT MAX(timestamp) AS last_sent FROM bwts_iot_events
-     WHERE event_type = 'ALERT_DIGEST_SENT'`
+     WHERE "eventType" = 'ALERT_DIGEST_SENT'`
   )
   if (!row?.last_sent) return false
   return Date.now() - new Date(row.last_sent).getTime() < COOLDOWN_MS
@@ -26,8 +26,8 @@ async function isCoolingDown(): Promise<boolean> {
 
 async function markDigestSent(): Promise<void> {
   await query(
-    `INSERT INTO bwts_iot_events (timestamp, event_type, description, month, data)
-     VALUES (NOW(), 'ALERT_DIGEST_SENT', 'Automated alert digest email sent', EXTRACT(MONTH FROM NOW())::int, NULL)`
+    `INSERT INTO bwts_iot_events (timestamp, "eventType", description, month)
+     VALUES (NOW(), 'ALERT_DIGEST_SENT', 'Automated alert digest email sent', EXTRACT(MONTH FROM NOW())::int)`
   )
 }
 
