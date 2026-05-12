@@ -77,6 +77,10 @@ export async function POST(req: NextRequest) {
   </div>
 </body></html>`
 
+  const deviationNum = body.threshold > 0
+    ? (body.currentValue - body.threshold) / body.threshold * 100
+    : null
+
   try {
     await sendAlertEmail({
       subject: `Demo Alert — ${body.parameter}`,
@@ -84,12 +88,26 @@ export async function POST(req: NextRequest) {
       body: '',
       customHtml: html,
     })
+
+    // Log email send event
     await dbQuery(
       `INSERT INTO bwts_iot_events (timestamp, "eventType", description, month, "dataOperationType")
        VALUES (NOW(), 'DEMO_ALERT_SENT', $1, EXTRACT(MONTH FROM NOW())::int, $2)`,
       [`Demo alert sent: ${body.parameter}`, body.type]
     )
-    return NextResponse.json({ ok: true, sent: true })
+
+    // Create alert instance — persists acknowledge/resolve state across refreshes
+    // and gives the agent SDK a queryable record to check before starting diagnosis
+    const instanceRow = await dbQueryOne<{ id: number }>(
+      `INSERT INTO bwts_alert_instances
+         (alert_type, severity, parameter, current_value, threshold_value, unit, deviation_pct, source, month)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'DEMO', EXTRACT(MONTH FROM NOW())::int)
+       RETURNING id`,
+      [body.type, body.severity, body.parameter,
+       body.currentValue, body.threshold, body.unit, deviationNum]
+    )
+
+    return NextResponse.json({ ok: true, sent: true, instanceId: instanceRow?.id ?? null })
   } catch (e) {
     console.error('Demo alert email failed:', e)
     return NextResponse.json({ ok: false, error: String(e) }, { status: 500 })

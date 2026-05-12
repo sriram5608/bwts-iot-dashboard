@@ -81,25 +81,54 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const acknowledgeAlert = useCallback((id: string) => {
+    // Capture alert type before engine changes state
+    const alert = getActiveAlerts().find(a => a.id === id)
     engineAck(id)
     setActiveAlerts([...getActiveAlerts()])
+    // Persist to DB
+    if (alert) {
+      const instanceId = instanceIds.current.get(alert.type)
+      if (instanceId) {
+        fetch(`/api/alert-instances/${instanceId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'ACKNOWLEDGED' }),
+        }).catch(() => {})
+      }
+    }
   }, [])
 
   const resolveAlert = useCallback((id: string) => {
+    // Capture alert before engine changes state
+    const alert = [...getActiveAlerts(), ...getAlertHistory()].find(a => a.id === id)
     engineResolve(id)
     setActiveAlerts([...getActiveAlerts()])
     setAlertHistory([...getAlertHistory()])
+    // Persist to DB
+    if (alert) {
+      const instanceId = instanceIds.current.get(alert.type)
+      if (instanceId) {
+        fetch(`/api/alert-instances/${instanceId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'RESOLVED' }),
+        }).catch(() => {})
+      }
+    }
   }, [])
 
   // Polling ticker to refresh alert state in sync with demo data
   // Track which alert types have already triggered an email this demo session
   const emailedTypes = useRef<Set<string>>(new Set())
+  // Map alert.type → DB instance id (so acknowledge/resolve can persist to DB)
+  const instanceIds = useRef<Map<string, number>>(new Map())
 
   const alertTickRef = useRef<ReturnType<typeof setInterval> | null>(null)
   useEffect(() => {
     if (!isDemoMode) {
       if (alertTickRef.current) clearInterval(alertTickRef.current)
       emailedTypes.current.clear()
+      instanceIds.current.clear()
       return
     }
     alertTickRef.current = setInterval(() => {
@@ -107,7 +136,7 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       setActiveAlerts([...current])
       setAlertHistory([...getAlertHistory()])
 
-      // Send email for any newly active alert type not yet emailed
+      // Send email + create DB instance for any newly active alert type
       for (const alert of current) {
         if (alert.status === 'ACTIVE' && !emailedTypes.current.has(alert.type)) {
           emailedTypes.current.add(alert.type)
@@ -123,7 +152,12 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
               unit: alert.unit,
               recommendedAction: alert.recommendedAction,
             }),
-          }).catch(() => {})
+          })
+            .then(r => r.json())
+            .then(data => {
+              if (data.instanceId) instanceIds.current.set(alert.type, data.instanceId)
+            })
+            .catch(() => {})
         }
       }
     }, 2000)

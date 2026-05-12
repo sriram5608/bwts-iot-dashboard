@@ -223,6 +223,18 @@ export async function GET() {
   try {
     await sendAlertEmail({ subject, severity: overallSeverity, body: '', customHtml: html })
     await markDigestSent()
+
+    // Insert alert instances for agent SDK deduplication
+    for (const alert of alerts) {
+      await query(
+        `INSERT INTO bwts_alert_instances
+           (alert_type, severity, parameter, current_value, threshold_value, source, month)
+         VALUES ($1, $2, $3, $4, $5, 'AUTO', EXTRACT(MONTH FROM NOW())::int)`,
+        [alert.category.toUpperCase().replace(/[^A-Z0-9]/g, '_'),
+         alert.severity, alert.category,
+         parseFloat(alert.value), parseFloat(alert.threshold)]
+      )
+    }
   } catch (e) {
     return NextResponse.json({ ok: false, error: String(e) }, { status: 500 })
   }
