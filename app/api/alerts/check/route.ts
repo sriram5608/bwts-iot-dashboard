@@ -5,6 +5,15 @@ import { THRESHOLDS } from '@/lib/constants'
 
 const COOLDOWN_MS = 60 * 60 * 1000 // 1 hour
 
+async function isAlertsPaused(): Promise<boolean> {
+  const row = await queryOne<{ event_type: string }>(
+    `SELECT event_type FROM bwts_iot_events
+     WHERE event_type IN ('ALERT_EMAIL_PAUSED', 'ALERT_EMAIL_RESUMED')
+     ORDER BY timestamp DESC LIMIT 1`
+  )
+  return row?.event_type === 'ALERT_EMAIL_PAUSED'
+}
+
 // PostgreSQL-backed cooldown — survives serverless cold starts
 async function isCoolingDown(): Promise<boolean> {
   const row = await queryOne<{ last_sent: Date }>(
@@ -50,6 +59,9 @@ interface AlertItem {
 }
 
 export async function GET() {
+  if (await isAlertsPaused()) {
+    return NextResponse.json({ ok: true, skipped: true, reason: 'paused' })
+  }
   if (await isCoolingDown()) {
     return NextResponse.json({ ok: true, skipped: true, reason: 'cooldown' })
   }

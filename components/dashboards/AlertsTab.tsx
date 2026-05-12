@@ -1,9 +1,61 @@
 'use client'
 
 import { useTranslations, useLocale } from 'next-intl'
-import { AlertTriangle, AlertCircle, Info, CheckCircle, Bell, Clock } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { AlertTriangle, AlertCircle, Info, CheckCircle, Bell, Clock, Mail, MailX } from 'lucide-react'
 import { useDemoMode } from '@/lib/demo-context'
 import type { BwtsAlert } from '@/lib/simulation/alert-engine'
+
+function EmailAlertToggle() {
+  const [state, setState] = useState<'active' | 'paused' | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/alerts/settings')
+      .then(r => r.json())
+      .then(d => setState(d.state))
+      .catch(() => setState('active'))
+  }, [])
+
+  const toggle = async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/alerts/settings', { method: 'POST' })
+      const data = await res.json()
+      setState(data.state)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (state === null) return null
+
+  const isPaused = state === 'paused'
+
+  return (
+    <div className={`flex items-center justify-between p-4 rounded-xl border ${isPaused ? 'bg-slate-50/60 border-slate-200/60' : 'bg-emerald-50/60 border-emerald-200/60'}`}>
+      <div className="flex items-center gap-3">
+        {isPaused
+          ? <MailX className="w-5 h-5 text-slate-400 shrink-0" />
+          : <Mail className="w-5 h-5 text-emerald-500 shrink-0" />
+        }
+        <div>
+          <p className="text-sm font-medium text-slate-700">Email Alerts</p>
+          <p className="text-xs text-slate-400 mt-0.5">
+            {isPaused ? 'Paused — no emails will be sent' : 'Active — alerts sent to team@metaweave.in'}
+          </p>
+        </div>
+      </div>
+      <button
+        onClick={toggle}
+        disabled={loading}
+        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none ${isPaused ? 'bg-slate-300' : 'bg-emerald-500'} ${loading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+      >
+        <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${isPaused ? 'translate-x-1' : 'translate-x-6'}`} />
+      </button>
+    </div>
+  )
+}
 
 function SeverityBadge({ severity }: { severity: BwtsAlert['severity'] }) {
   if (severity === 'CRITICAL') return (
@@ -106,15 +158,25 @@ export default function AlertsTab() {
 
   if (!isDemoMode) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 gap-3">
-        <Bell className="w-10 h-10 text-slate-300" />
-        <p className="text-slate-400 text-sm">{t('enableDemoMode')}</p>
+      <div className="space-y-8">
+        <div>
+          <p className="text-slate-400 text-[10px] uppercase tracking-wider mb-4">Email Alert Settings</p>
+          <EmailAlertToggle />
+        </div>
+        <div className="flex flex-col items-center justify-center h-40 gap-3">
+          <Bell className="w-10 h-10 text-slate-300" />
+          <p className="text-slate-400 text-sm">{t('enableDemoMode')}</p>
+        </div>
       </div>
     )
   }
 
   return (
     <div className="space-y-8">
+      <div>
+        <p className="text-slate-400 text-[10px] uppercase tracking-wider mb-4">Email Alert Settings</p>
+        <EmailAlertToggle />
+      </div>
       {/* Active Alerts */}
       <div>
         <div className="flex items-center gap-3 mb-4">
