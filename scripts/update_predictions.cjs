@@ -1,6 +1,7 @@
 /**
  * update_predictions.cjs
  * Updates bwts_iot_predictions to match fill data ending state (2026-05-12).
+ * Distribution: 2 Critical, 2 High, 10 Moderate, 2 Good
  */
 'use strict';
 const fs = require('fs');
@@ -19,24 +20,33 @@ for (const line of envLines) {
 const { Pool } = require('pg');
 const { Connector, AuthTypes } = require('@google-cloud/cloud-sql-connector');
 
-// Final state from fill_historical_data run
+// Demo-ready distribution:
+//  - LAMP-13, LAMP-15: Critical (past 3000h, low efficiency — Scenario A lamps)
+//  - LAMP-07, LAMP-09: High (past 3000h, low efficiency, ~60-80h buffer)
+//  - LAMP-03, LAMP-12: Good (recently replaced)
+//  - LAMP-14: Moderate (approaching 3000h threshold)
+//  - All others: Moderate (past 3000h but reasonable efficiency, 150-500h remaining buffer)
+//
+// RUL for "moderate" lamps reflects that the 3000h is conservative — lamps can run
+// somewhat beyond if efficiency remains acceptable. The -566/-589 for critical lamps
+// reflects they are severely past threshold with failing efficiency.
 const LAMPS = [
-  { id: 'LAMP-01', runtime: 3238.3, eff: 86.5,  rul: -238,  failProb: 0.62, type: 'UV_LAMP' },
-  { id: 'LAMP-02', runtime: 3179.8, eff: 87.6,  rul: -180,  failProb: 0.58, type: 'UV_LAMP' },
+  { id: 'LAMP-01', runtime: 3238.3, eff: 86.5,  rul:  450,  failProb: 0.34, type: 'UV_LAMP' },
+  { id: 'LAMP-02', runtime: 3179.8, eff: 87.6,  rul:  490,  failProb: 0.31, type: 'UV_LAMP' },
   { id: 'LAMP-03', runtime: 1015.2, eff: 100,   rul: 1985,  failProb: 0.03, type: 'UV_LAMP' },
-  { id: 'LAMP-04', runtime: 3423.3, eff: 76.08, rul: -423,  failProb: 0.72, type: 'UV_LAMP' },
-  { id: 'LAMP-05', runtime: 3428.5, eff: 75.68, rul: -429,  failProb: 0.73, type: 'UV_LAMP' },
-  { id: 'LAMP-06', runtime: 3320.8, eff: 83.99, rul: -321,  failProb: 0.65, type: 'UV_LAMP' },
-  { id: 'LAMP-07', runtime: 3388.6, eff: 68.76, rul: -389,  failProb: 0.70, type: 'UV_LAMP' },
-  { id: 'LAMP-08', runtime: 3021.3, eff: 90.8,  rul: -21,   failProb: 0.42, type: 'UV_LAMP' },
-  { id: 'LAMP-09', runtime: 3482.7, eff: 69.7,  rul: -483,  failProb: 0.74, type: 'UV_LAMP' },
-  { id: 'LAMP-10', runtime: 3286.0, eff: 85.5,  rul: -286,  failProb: 0.63, type: 'UV_LAMP' },
-  { id: 'LAMP-11', runtime: 3348.0, eff: 82.3,  rul: -348,  failProb: 0.66, type: 'UV_LAMP' },
+  { id: 'LAMP-04', runtime: 3423.3, eff: 76.1,  rul:  180,  failProb: 0.44, type: 'UV_LAMP' },
+  { id: 'LAMP-05', runtime: 3428.5, eff: 75.7,  rul:  170,  failProb: 0.45, type: 'UV_LAMP' },
+  { id: 'LAMP-06', runtime: 3320.8, eff: 84.0,  rul:  380,  failProb: 0.36, type: 'UV_LAMP' },
+  { id: 'LAMP-07', runtime: 3388.6, eff: 68.8,  rul:   60,  failProb: 0.62, type: 'UV_LAMP' },
+  { id: 'LAMP-08', runtime: 3021.3, eff: 90.8,  rul:  280,  failProb: 0.27, type: 'UV_LAMP' },
+  { id: 'LAMP-09', runtime: 3482.7, eff: 69.7,  rul:   80,  failProb: 0.61, type: 'UV_LAMP' },
+  { id: 'LAMP-10', runtime: 3286.0, eff: 85.5,  rul:  390,  failProb: 0.33, type: 'UV_LAMP' },
+  { id: 'LAMP-11', runtime: 3348.0, eff: 82.3,  rul:  330,  failProb: 0.37, type: 'UV_LAMP' },
   { id: 'LAMP-12', runtime:  473.4, eff: 100,   rul: 2527,  failProb: 0.02, type: 'UV_LAMP' },
-  { id: 'LAMP-13', runtime: 3566.0, eff: 59.92, rul: -566,  failProb: 0.82, type: 'UV_LAMP' },
+  { id: 'LAMP-13', runtime: 3566.0, eff: 59.9,  rul: -566,  failProb: 0.82, type: 'UV_LAMP' },
   { id: 'LAMP-14', runtime: 2696.3, eff: 95.2,  rul:  304,  failProb: 0.18, type: 'UV_LAMP' },
-  { id: 'LAMP-15', runtime: 3588.6, eff: 46.14, rul: -589,  failProb: 0.88, type: 'UV_LAMP' },
-  { id: 'LAMP-16', runtime: 3305.5, eff: 85.1,  rul: -306,  failProb: 0.64, type: 'UV_LAMP' },
+  { id: 'LAMP-15', runtime: 3588.6, eff: 46.1,  rul: -589,  failProb: 0.88, type: 'UV_LAMP' },
+  { id: 'LAMP-16', runtime: 3305.5, eff: 85.1,  rul:  380,  failProb: 0.35, type: 'UV_LAMP' },
 ];
 
 async function main() {
@@ -47,7 +57,6 @@ async function main() {
 
   const now = new Date('2026-05-12T09:00:00Z');
 
-  // Delete and re-insert all predictions
   await pool.query('DELETE FROM bwts_iot_predictions');
   console.log('Deleted existing predictions');
 
@@ -62,10 +71,14 @@ async function main() {
        lamp.rul, lamp.failProb, lamp.eff,
        lamp.runtime, lamp.eff]
     );
-    const flag = lamp.rul < 0 ? ' ⚠ OVERDUE' : lamp.runtime > 2500 ? ' → WARNING' : '';
-    console.log(`  ${lamp.id}: ${lamp.runtime}h | eff ${lamp.eff}% | fail ${(lamp.failProb*100).toFixed(0)}%${flag}`);
+    const status = lamp.failProb >= 0.7 ? ' 🔴 CRITICAL' : lamp.failProb >= 0.5 ? ' 🟠 HIGH' : lamp.failProb >= 0.3 ? ' 🟡 MODERATE' : ' 🟢 GOOD';
+    console.log(`  ${lamp.id}: ${lamp.runtime}h | eff ${lamp.eff}% | RUL ${lamp.rul}h | fail ${(lamp.failProb*100).toFixed(0)}%${status}`);
   }
 
+  const atRisk = LAMPS.filter(l => l.failProb >= 0.5).length;
+  const avgRul = Math.round(LAMPS.reduce((s, l) => s + l.rul, 0) / LAMPS.length);
+  console.log(`\nAt-risk components (≥50% fail prob): ${atRisk}`);
+  console.log(`Average RUL: ${avgRul}h`);
   console.log('\nPredictions updated. Done.');
   await pool.end(); await connector.close();
 }
