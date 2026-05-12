@@ -556,19 +556,29 @@ npm run build
 
 ### GitHub Remotes
 
-This repo has three remotes. Always push to `sriram5608` and `metaweavehq` on every change:
+This repo has three remotes. Push to all three on every change:
+
+| Remote | Repo | Auth account needed |
+|--------|------|-------------------|
+| `origin` | `sriram-metaweave/bwts-iot-dashboard` | `team1-appliedai` (= sriram-metaweave) |
+| `metaweavehq` | `metaweavehq/bwts-iot-dashboard` | `team1-appliedai` |
+| `sriram5608` | `sriram5608/bwts-iot-dashboard` | `sriram5608` |
+
+> `team1-appliedai` and `sriram-metaweave` are the same GitHub account — always switch to `team1-appliedai` before pushing to `origin` or `metaweavehq`.
 
 ```bash
-git push sriram5608 main
+gh auth switch --user team1-appliedai
+git push origin main       # auto-triggers Vercel
 git push metaweavehq main
-```
 
-> Note: `origin` (sriram-metaweave) requires separate credentials. Push there when the account is available.
+gh auth switch --user sriram5608
+git push sriram5608 main
+```
 
 ### Vercel Auto-Deploy
 
-- **Connected repo:** `sriram-metaweave/bwts-iot-dashboard` → pushes to that repo auto-deploy to Vercel
-- **metaweavehq** and **sriram5608** do NOT auto-trigger Vercel — use `vercel deploy --prod --scope lifeosai` after pushing to those
+- **Connected repo:** `sriram-metaweave/bwts-iot-dashboard` (`origin`) → **pushes here auto-deploy Vercel** ✅
+- **metaweavehq** and **sriram5608** do NOT auto-trigger Vercel
 - **Production URL (share this):** `https://bwtsfinalwithpostgredb.vercel.app`
 - **Vercel team:** `lifeosai`
 
@@ -578,9 +588,13 @@ git push metaweavehq main
 npm run build                          # 1. Must pass — no errors
 git add <files>
 git commit -m "..."                    # 2. Commit
-git push sriram5608 main               # 3. Push to sriram5608
+
+gh auth switch --user team1-appliedai
+git push origin main                   # 3. Push to origin → auto-deploys Vercel
 git push metaweavehq main              # 4. Push to metaweavehq
-vercel deploy --prod --scope lifeosai  # 5. Deploy to Vercel (if not auto-triggered)
+
+gh auth switch --user sriram5608
+git push sriram5608 main               # 5. Push to sriram5608
 ```
 
 ---
