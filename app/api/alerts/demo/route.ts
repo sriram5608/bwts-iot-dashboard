@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sendAlertEmail } from '@/lib/email'
 
-// Per-alert-type cooldown so rapid demo triggers don't spam
-const COOLDOWN_MS = 5 * 60 * 1000 // 5 minutes in demo mode
-const lastSent = new Map<string, number>()
+const COOLDOWN_MS = 5 * 60 * 1000 // 5 minutes per demo alert type
 
 export async function POST(req: NextRequest) {
   const body = await req.json() as {
@@ -20,8 +18,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'Missing type or severity' }, { status: 400 })
   }
 
-  const last = lastSent.get(body.type) ?? 0
-  if (Date.now() - last < COOLDOWN_MS) {
+  // DB-backed cooldown — works across serverless invocations
+  const { query: dbQuery, queryOne: dbQueryOne } = await import('@/lib/db')
+  const row = await dbQueryOne<{ last_sent: Date }>(
+    `SELECT MAX(timestamp) AS last_sent FROM bwts_iot_events
+     WHERE event_type = 'DEMO_ALERT_SENT' AND data->>'alertType' = $1`,
+    [body.type]
+  )
+  if (row?.last_sent && Date.now() - new Date(row.last_sent).getTime() < COOLDOWN_MS) {
     return NextResponse.json({ ok: true, skipped: true, reason: 'cooldown' })
   }
 
@@ -80,7 +84,11 @@ export async function POST(req: NextRequest) {
       body: '',
       customHtml: html,
     })
-    lastSent.set(body.type, Date.now())
+    await dbQuery(
+      `INSERT INTO bwts_iot_events (timestamp, event_type, description, month, data)
+       VALUES (NOW(), 'DEMO_ALERT_SENT', $1, EXTRACT(MONTH FROM NOW())::int, $2)`,
+      [`Demo alert sent: ${body.parameter}`, JSON.stringify({ alertType: body.type })]
+    )
     return NextResponse.json({ ok: true, sent: true })
   } catch (e) {
     console.error('Demo alert email failed:', e)

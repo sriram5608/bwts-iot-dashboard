@@ -1,11 +1,26 @@
 import { NextResponse } from 'next/server'
-import { query } from '@/lib/db'
+import { query, queryOne } from '@/lib/db'
 import { sendAlertEmail } from '@/lib/email'
 import { THRESHOLDS } from '@/lib/constants'
 
-// One-hour cooldown for the whole digest (not per-alert)
-const COOLDOWN_MS = 60 * 60 * 1000
-let lastDigestSent = 0
+const COOLDOWN_MS = 60 * 60 * 1000 // 1 hour
+
+// PostgreSQL-backed cooldown — survives serverless cold starts
+async function isCoolingDown(): Promise<boolean> {
+  const row = await queryOne<{ last_sent: Date }>(
+    `SELECT MAX(timestamp) AS last_sent FROM bwts_iot_events
+     WHERE event_type = 'ALERT_DIGEST_SENT'`
+  )
+  if (!row?.last_sent) return false
+  return Date.now() - new Date(row.last_sent).getTime() < COOLDOWN_MS
+}
+
+async function markDigestSent(): Promise<void> {
+  await query(
+    `INSERT INTO bwts_iot_events (timestamp, event_type, description, month, data)
+     VALUES (NOW(), 'ALERT_DIGEST_SENT', 'Automated alert digest email sent', EXTRACT(MONTH FROM NOW())::int, NULL)`
+  )
+}
 
 interface TelemetryRow {
   failed_lamp_count: number
@@ -35,8 +50,8 @@ interface AlertItem {
 }
 
 export async function GET() {
-  if (Date.now() - lastDigestSent < COOLDOWN_MS) {
-    return NextResponse.json({ ok: true, skipped: true, reason: 'cooldown', nextCheckAt: new Date(lastDigestSent + COOLDOWN_MS).toISOString() })
+  if (await isCoolingDown()) {
+    return NextResponse.json({ ok: true, skipped: true, reason: 'cooldown' })
   }
 
   const alerts: AlertItem[] = []
@@ -195,11 +210,11 @@ export async function GET() {
 
   try {
     await sendAlertEmail({ subject, severity: overallSeverity, body: '', customHtml: html })
+    await markDigestSent()
   } catch (e) {
     return NextResponse.json({ ok: false, error: String(e) }, { status: 500 })
   }
 
-  lastDigestSent = Date.now()
   return NextResponse.json({ ok: true, fired: true, alertCount: alerts.length, checkedAt: new Date().toISOString() })
 }
 

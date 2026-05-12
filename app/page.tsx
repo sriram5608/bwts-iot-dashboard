@@ -21,12 +21,12 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState('overview')
   const { activeAlerts } = useDemoMode()
 
-  // Fire alert checks on the same 30-second cadence as the dashboard refresh.
-  // The server route handles cooldowns so emails are never spammed.
+  // Check alerts once per hour — the server also enforces a DB-backed cooldown
+  // so emails are never spammed even if multiple tabs are open.
   useEffect(() => {
     const checkAlerts = () => fetch('/api/alerts/check').catch(() => {})
     checkAlerts()
-    const id = setInterval(checkAlerts, 30_000)
+    const id = setInterval(checkAlerts, 60 * 60 * 1000)
     return () => clearInterval(id)
   }, [])
 
