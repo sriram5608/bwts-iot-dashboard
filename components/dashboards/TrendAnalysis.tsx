@@ -82,8 +82,8 @@ export default function TrendAnalysis() {
         ])
         const telemetryAgg = await telemetryRes.json()
         const healthAgg = await healthRes.json()
-        setTelemetryData(telemetryAgg)
-        const formatted = (healthAgg as HealthAggregatedData[]).map((h) => ({
+        setTelemetryData(Array.isArray(telemetryAgg) ? telemetryAgg : [])
+        const formatted = (Array.isArray(healthAgg) ? healthAgg as HealthAggregatedData[] : []).map((h) => ({
           date: new Date(h.timestamp).toLocaleDateString(locale),
           health: h.overall_score,
           uvHealth: h.components?.uv_health || 0,
@@ -173,7 +173,7 @@ export default function TrendAnalysis() {
   }, [startDate, endDate])
 
   const stats = useMemo(() => {
-    if (telemetryData.length === 0) {
+    if (!Array.isArray(telemetryData) || telemetryData.length === 0) {
       return { avgUVIntensity: 0, avgEfficiency: 0, healthTrend: 0, dataPoints: 0 }
     }
     const avgUV = telemetryData.reduce((sum, item) => sum + (item.UVR_INTENSITY || 0), 0) / telemetryData.length

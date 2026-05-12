@@ -251,9 +251,10 @@
     "historical": "Dados Históricos",
     "ballast": "Lastro",
     "deballast": "Deslastro",
-    "triggerLampFailure": "Simular Falha de Lâmpada",
-    "triggerFilterClog": "Simular Entupimento de Filtro",
-    "triggerFlowDeviation": "Simular Desvio de Fluxo",
+    "scenarioA": "Degradação UV",
+    "scenarioB": "Entupimento de Filtro",
+    "scenarioC": "Falha LPS",
+    "scenarioD": "Falha no CIP",
     "resetDemo": "Reiniciar Demo",
     "demoControls": "Controles Demo"
   },

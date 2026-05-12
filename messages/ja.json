@@ -251,9 +251,10 @@
     "historical": "履歴データ",
     "ballast": "バラスト",
     "deballast": "デバラスト",
-    "triggerLampFailure": "ランプ障害を発生",
-    "triggerFilterClog": "フィルター詰まりを発生",
-    "triggerFlowDeviation": "流量偏差を発生",
+    "scenarioA": "UV劣化",
+    "scenarioB": "フィルター詰まり",
+    "scenarioC": "LPS障害",
+    "scenarioD": "CIP回復なし",
     "resetDemo": "デモをリセット",
     "demoControls": "デモ制御"
   },

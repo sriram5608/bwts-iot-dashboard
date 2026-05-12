@@ -251,9 +251,10 @@
     "historical": "기록 데이터",
     "ballast": "밸러스트",
     "deballast": "디밸러스트",
-    "triggerLampFailure": "램프 고장 발생",
-    "triggerFilterClog": "필터 막힘 발생",
-    "triggerFlowDeviation": "유량 편차 발생",
+    "scenarioA": "UV 저하",
+    "scenarioB": "필터 막힘",
+    "scenarioC": "LPS 고장",
+    "scenarioD": "CIP 미회복",
     "resetDemo": "데모 재설정",
     "demoControls": "데모 제어"
   },

@@ -251,9 +251,10 @@
     "historical": "Historical",
     "ballast": "Ballast",
     "deballast": "Deballast",
-    "triggerLampFailure": "Trigger Lamp Failure",
-    "triggerFilterClog": "Trigger Filter Clog",
-    "triggerFlowDeviation": "Trigger Flow Deviation",
+    "scenarioA": "UV Degradation",
+    "scenarioB": "Filter Clog",
+    "scenarioC": "LPS Failure",
+    "scenarioD": "CIP No Recovery",
     "resetDemo": "Reset Demo",
     "demoControls": "Demo Controls"
   },
