@@ -6,10 +6,16 @@ import { Calendar, AlertTriangle, DollarSign, Clock, ChevronLeft, ChevronRight }
 import { Prediction } from '@/lib/types'
 
 interface MaintenanceTask {
-  maintenance_type: string
+  id: number
+  component_id: string
   component_type: string
+  maintenance_type: string
+  description: string
+  completed_date: string
+  due_date: string | null
   next_due_date: string
-  components: string
+  status: string
+  findings: string | null
   days_until: number
 }
 
@@ -223,9 +229,7 @@ export default function PredictiveMaintenance() {
               const overdue = task.days_until <= 0
               const urgent = task.days_until > 0 && task.days_until <= 20
               const label = TASK_LABELS[task.maintenance_type] ?? task.maintenance_type.replace(/_/g, ' ')
-              const detail = task.components.length > 30
-                ? task.components.slice(0, 28) + '…'
-                : task.components
+              const detail = `${task.component_id} · last done ${task.completed_date}`
               return (
                 <div key={i} className="flex items-center justify-between p-4 bg-white/30 rounded-xl hover:bg-white/50 transition-colors">
                   <div>
@@ -237,7 +241,7 @@ export default function PredictiveMaintenance() {
                   }`}>
                     {overdue
                       ? `${Math.abs(task.days_until)}d overdue`
-                      : `${task.days_until} ${tCommon('days')}`}
+                      : `in ${task.days_until} ${tCommon('days')}`}
                   </div>
                 </div>
               )
